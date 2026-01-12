@@ -2,6 +2,14 @@
 
 This directory contains scripts for collecting metrics from O-RAN E2 nodes (CUs, DUs) and generating various types of stresses for testing purposes.
 
+## Files Overview
+
+- `collect_metrics.py` - Data collection script
+- `generate_traffic.py` - Traffic generation script
+- `generate_stress.py` - Stress generation script
+- `utils.py` - Shared utility functions
+- `requirements.txt` - Python dependencies
+
 ## Scripts Overview
 
 ### 1. `collect_metrics.py` - Data Collection Script

@@ -42,7 +42,6 @@ Usage:
 
 import argparse
 import csv
-import json
 import logging
 import os
 import random
@@ -54,6 +53,8 @@ import time
 from datetime import datetime
 from enum import Enum
 from typing import Any
+
+from utils import parse_duration
 
 # Configure logging
 logging.basicConfig(
@@ -619,38 +620,6 @@ class StressScenario:
 
             # Wait for stress duration plus rest
             time.sleep(stress_duration + rest_duration)
-
-
-def parse_duration(duration_str: str) -> float:
-    """Parse a duration string into seconds."""
-    duration_str = duration_str.strip().lower()
-
-    if duration_str.isdigit():
-        return float(duration_str)
-
-    total_seconds = 0
-    current_num = ""
-
-    for char in duration_str:
-        if char.isdigit() or char == ".":
-            current_num += char
-        elif char == "h":
-            if current_num:
-                total_seconds += float(current_num) * 3600
-                current_num = ""
-        elif char == "m":
-            if current_num:
-                total_seconds += float(current_num) * 60
-                current_num = ""
-        elif char == "s":
-            if current_num:
-                total_seconds += float(current_num)
-                current_num = ""
-
-    if current_num:
-        total_seconds += float(current_num)
-
-    return total_seconds
 
 
 def main():

@@ -44,14 +44,14 @@ Usage:
 import argparse
 import json
 import logging
-import os
 import signal
 import subprocess
 import sys
 import threading
 import time
 from datetime import datetime
-from typing import Any
+
+from utils import parse_duration
 
 # Configure logging
 logging.basicConfig(
@@ -279,44 +279,6 @@ class TrafficPatternManager:
     def scale_pattern(pattern: list[float], scale: float) -> list[float]:
         """Scale all values in a pattern by a factor."""
         return [x * scale for x in pattern]
-
-
-def parse_duration(duration_str: str) -> float:
-    """
-    Parse a duration string into seconds.
-
-    Supports formats like: "1h", "30m", "3600s", "1h30m", "86400"
-    """
-    duration_str = duration_str.strip().lower()
-
-    if duration_str.isdigit():
-        return float(duration_str)
-
-    total_seconds = 0
-    current_num = ""
-
-    for char in duration_str:
-        if char.isdigit() or char == ".":
-            current_num += char
-        elif char == "h":
-            if current_num:
-                total_seconds += float(current_num) * 3600
-                current_num = ""
-        elif char == "m":
-            if current_num:
-                total_seconds += float(current_num) * 60
-                current_num = ""
-        elif char == "s":
-            if current_num:
-                total_seconds += float(current_num)
-                current_num = ""
-        else:
-            raise ValueError(f"Invalid duration format: {duration_str}")
-
-    if current_num:
-        total_seconds += float(current_num)
-
-    return total_seconds
 
 
 def main():
