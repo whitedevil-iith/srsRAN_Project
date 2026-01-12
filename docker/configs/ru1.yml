@@ -1,9 +1,73 @@
-# srsRAN gNB (RU) configuration file - RU1
-# ZMQ Server Mode for Radio Unit
+# =============================================================================
+# srsRAN gNB Configuration for RU1 (ZMQ Mode RF Simulation)
+# =============================================================================
+# Configuration file for RU1 used by docker-compose.monitoring.yml
+# This container runs a full gNB in ZMQ mode to provide RF simulation for DU1
+# Note: This is named "RU" but runs the gnb command for ZMQ-based RF testing
+#
 
+# =============================================================================
+# CU-CP Configuration (Control Plane)
+# =============================================================================
+cu_cp:
+  amf:
+    addr: 175.53.1.2
+    bind_addr: 175.53.1.21
+    supported_tracking_areas:
+      - tac: 7
+        plmn_list:
+          - plmn: "00101"
+            tai_slice_support_list:
+              - sst: 1
+
+# =============================================================================
+# Radio Unit (RU) SDR Configuration - ZMQ Mode
+# =============================================================================
 ru_sdr:
   device_driver: zmq
-  device_args: tx_port0=tcp://175.53.1.21:20010,rx_port0=tcp://175.53.1.21:20011,tx_port1=tcp://175.53.1.21:20020,rx_port1=tcp://175.53.1.21:20021,tx_port2=tcp://175.53.1.21:20030,rx_port2=tcp://175.53.1.21:20031
+  device_args: tx_port0=tcp://175.53.1.21:2001,rx_port0=tcp://175.53.1.13:2000,tx_port1=tcp://175.53.1.21:2101,rx_port1=tcp://175.53.1.13:2100
   srate: 23.04
   tx_gain: 50
   rx_gain: 40
+
+# =============================================================================
+# Cell Configuration
+# =============================================================================
+cell_cfg:
+  dl_arfcn: 368500
+  band: 3
+  channel_bandwidth_MHz: 20
+  common_scs: 15
+  plmn: "00101"
+  tac: 7
+  pci: 2
+
+# =============================================================================
+# Test Mode Configuration (for 2 UEs)
+# =============================================================================
+test_mode:
+  test_ue:
+    rnti: 0x44
+    nof_ues: 2
+    pdsch_active: true
+    pusch_active: true
+    cqi: 15
+    ri: 1
+    pmi: 0
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+log:
+  filename: /tmp/gnb.log
+  all_level: info
+  phy_level: warning
+
+# =============================================================================
+# PCAP Configuration
+# =============================================================================
+pcap:
+  mac_enable: false
+  mac_filename: /tmp/gnb_mac.pcap
+  ngap_enable: false
+  ngap_filename: /tmp/gnb_ngap.pcap
