@@ -5,10 +5,17 @@ This directory contains scripts for collecting metrics from O-RAN E2 nodes (CUs,
 ## Files Overview
 
 - `collect_metrics.py` - Data collection script
-- `generate_traffic.py` - Traffic generation script
-- `generate_stress.py` - Stress generation script
+- `generate_traffic.py` - Traffic generation script with aggregate mode
+- `generate_stress.py` - Stress generation script with traffic-aware mode
 - `utils.py` - Shared utility functions
 - `requirements.txt` - Python dependencies
+
+## Topology
+
+The docker-compose.srsue.yml supports the following topology:
+- **CU0** → DU0, DU1 (2 DUs, each with 2 UEs = 4 UEs)
+- **CU1** → DU2 (1 DU with 2 UEs = 2 UEs)
+- **Total**: 2 CUs, 3 DUs, 6 UEs
 
 ## Scripts Overview
 
@@ -50,23 +57,25 @@ Generates iperf UDP traffic for UEs based on a configurable traffic distribution
 
 **Key Features:**
 - Configurable traffic pattern (array of bandwidth values in Mbps)
+- **Aggregate mode**: Pattern specifies total bandwidth, randomly split among UEs
 - Distributes time slices across the total duration
-- Supports multiple UEs
+- Supports multiple UEs (6 UEs in default configuration)
 - Logs traffic events with timestamps
 
-**Default 24-hour Traffic Pattern:**
+**Default 24-hour Traffic Pattern (Aggregate Mbps):**
 ```
 [11.0, 8.1, 5.6, 3.6, 2.7, 1.9, 3.0, 5.0, 7.1, 11.1, 11.2, 11.9, 
  12.3, 13.0, 13.1, 12.9, 12.7, 12.4, 12.2, 12.0, 13.0, 14.0, 15.0, 14.0]
 ```
 
-**Usage:**
+**Usage (Aggregate Mode):**
 ```bash
 python generate_traffic.py \
     --pattern "[11.0, 8.1, 5.6, 3.6, 2.7, 1.9, 3.0, 5.0, 7.1, 11.1, 11.2, 11.9, 12.3, 13.0, 13.1, 12.9, 12.7, 12.4, 12.2, 12.0, 13.0, 14.0, 15.0, 14.0]" \
     --duration 24h \
-    --ue-ips "10.45.0.2,10.45.0.3" \
+    --ue-ips "10.45.0.2,10.45.0.3,10.45.0.4,10.45.0.5,10.45.0.6,10.45.0.7" \
     --server-ip 10.45.0.1 \
+    --aggregate-mode \
     --output-file ./traffic_log.csv
 ```
 
@@ -77,6 +86,7 @@ python generate_traffic.py \
 - `--server-ip`: IP address of the iperf server
 - `--server-port`: Port of the iperf server (default: 5001)
 - `--scale`: Scale factor for bandwidth values
+- `--aggregate-mode`: Treat pattern as aggregate bandwidth, randomly split among UEs
 - `--output-file`: Output file for traffic log
 
 ### 3. `generate_stress.py` - Stress Generation Script
@@ -95,29 +105,36 @@ Generates various types of stresses on containers to simulate cloud deployment c
 **Scenarios:**
 - `random`: Applies random stresses at random intervals
 - `sequential`: Applies each stress type sequentially to all containers
+- `traffic_aware`: **Only applies stress during positive traffic slope** (when traffic is increasing)
 
-**Usage:**
+**Usage (Traffic-Aware Mode):**
 ```bash
 python generate_stress.py \
-    --scenario random \
-    --duration 1h \
+    --scenario traffic_aware \
+    --duration 24h \
     --containers "srscu0,srscu1,srsdu0,srsdu1,srsdu2" \
     --output-dir ./stress_data \
-    --min-interval 10 \
-    --max-interval 60 \
-    --min-stress-duration 5 \
-    --max-stress-duration 30
+    --traffic-pattern "[11.0, 8.1, 5.6, 3.6, 2.7, 1.9, 3.0, 5.0, 7.1, 11.1, 11.2, 11.9, 12.3, 13.0, 13.1, 12.9, 12.7, 12.4, 12.2, 12.0, 13.0, 14.0, 15.0, 14.0]" \
+    --stress-prob-cpu 0.3 \
+    --stress-prob-memory 0.2 \
+    --stress-prob-io 0.15 \
+    --stress-prob-network-loss 0.1 \
+    --stress-prob-network-latency 0.15 \
+    --stress-prob-disk 0.1
 ```
 
 **Arguments:**
-- `--scenario`: Stress scenario type (random, sequential, custom)
+- `--scenario`: Stress scenario type (random, sequential, traffic_aware, custom)
 - `--duration`: Total duration (e.g., '1h', '30m', '3600')
 - `--containers`: Comma-separated list of container names
 - `--output-dir`: Output directory for stress tracking file
-- `--min-interval`: Minimum interval between random stresses (seconds)
-- `--max-interval`: Maximum interval between random stresses (seconds)
-- `--min-stress-duration`: Minimum stress duration (seconds)
-- `--max-stress-duration`: Maximum stress duration (seconds)
+- `--traffic-pattern`: Traffic pattern for slope detection (required for traffic_aware)
+- `--stress-prob-cpu`: Probability for CPU stress (0.0-1.0, default: 0.3)
+- `--stress-prob-memory`: Probability for memory stress (0.0-1.0, default: 0.2)
+- `--stress-prob-io`: Probability for I/O stress (0.0-1.0, default: 0.15)
+- `--stress-prob-network-loss`: Probability for network loss (0.0-1.0, default: 0.1)
+- `--stress-prob-network-latency`: Probability for network latency (0.0-1.0, default: 0.15)
+- `--stress-prob-disk`: Probability for disk stress (0.0-1.0, default: 0.1)
 
 **Output:**
 The script generates a CSV file with the following columns:
@@ -177,11 +194,11 @@ The stress events file uses the same timestamp format, allowing correlation betw
 # Terminal 1: Start data collection
 python collect_metrics.py --interval 1 --duration 3600 --output-dir ./data
 
-# Terminal 2: Start stress generation
-python generate_stress.py --scenario random --duration 3600 --output-dir ./data
+# Terminal 2: Start stress generation (traffic-aware mode)
+python generate_stress.py --scenario traffic_aware --duration 3600 --output-dir ./data
 
-# Terminal 3: Start traffic generation
-python generate_traffic.py --use-default-pattern --duration 1h --output-file ./data/traffic.csv
+# Terminal 3: Start traffic generation (aggregate mode)
+python generate_traffic.py --use-default-pattern --duration 1h --aggregate-mode --output-file ./data/traffic.csv
 ```
 
 ## License

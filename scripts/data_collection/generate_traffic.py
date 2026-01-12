@@ -25,25 +25,24 @@ Traffic Generation Script for O-RAN UEs
 This script generates iperf UDP traffic for UEs based on a configurable
 traffic distribution pattern over a given time period.
 
-The traffic pattern is specified as an array of values representing the
-target bandwidth (in Mbps) for each time slice. The script distributes
-these time slices across the total duration.
+The traffic pattern specifies the AGGREGATE bandwidth (in Mbps) for each time
+slice. In aggregate mode, this total bandwidth is randomly split among all UEs
+so that the sum of all UE bandwidths equals the aggregate target.
 
 Example:
     # Generate traffic with 24 time slices over 24 hours (1 hour per slice)
-    python generate_traffic.py --pattern "[11.0, 8.1, 5.6, ...]" --duration 24h
-
-    # Generate traffic with 24 time slices over 1 hour (2.5 minutes per slice)
-    python generate_traffic.py --pattern "[11.0, 8.1, 5.6, ...]" --duration 1h
+    # Aggregate bandwidth split randomly among UEs
+    python generate_traffic.py --pattern "[11.0, 8.1, 5.6, ...]" --duration 24h --aggregate-mode
 
 Usage:
     python generate_traffic.py --pattern "[11.0, 8.1, 5.6, 3.6, ...]" \\
-        --duration 24h --ue-ips "10.45.0.2,10.45.0.3" --server-ip 10.45.0.1
+        --duration 24h --ue-ips "10.45.0.2,10.45.0.3" --server-ip 10.45.0.1 --aggregate-mode
 """
 
 import argparse
 import json
 import logging
+import random
 import signal
 import subprocess
 import sys
@@ -62,6 +61,51 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def random_split(total: float, n: int, min_fraction: float = 0.05) -> list[float]:
+    """
+    Randomly split a total value into n parts.
+    
+    Args:
+        total: Total value to split
+        n: Number of parts
+        min_fraction: Minimum fraction each part should receive (default 5%)
+    
+    Returns:
+        List of n values that sum to total
+    """
+    if n <= 0:
+        return []
+    if n == 1:
+        return [total]
+    
+    # Generate random weights
+    weights = [random.random() for _ in range(n)]
+    total_weight = sum(weights)
+    
+    # Normalize weights and apply to total
+    parts = [(w / total_weight) * total for w in weights]
+    
+    # Ensure minimum allocation for each UE
+    min_value = total * min_fraction
+    for i in range(len(parts)):
+        if parts[i] < min_value:
+            deficit = min_value - parts[i]
+            parts[i] = min_value
+            # Redistribute deficit from other parts proportionally
+            # Only deduct from parts that can afford it
+            other_indices = [
+                j for j in range(len(parts)) 
+                if j != i and parts[j] > min_value + (deficit / n)
+            ]
+            if other_indices:
+                redistribute_per = deficit / len(other_indices)
+                for j in other_indices:
+                    if parts[j] - redistribute_per >= min_value:
+                        parts[j] -= redistribute_per
+    
+    return parts
+
+
 class TrafficGenerator:
     """Generates iperf UDP traffic based on a distribution pattern."""
 
@@ -71,6 +115,7 @@ class TrafficGenerator:
         server_ip: str,
         server_port: int = 5001,
         bind_port_start: int = 5100,
+        aggregate_mode: bool = False,
     ):
         """
         Initialize the traffic generator.
@@ -80,11 +125,13 @@ class TrafficGenerator:
             server_ip: IP address of the iperf server
             server_port: Port of the iperf server
             bind_port_start: Starting port for UE binding
+            aggregate_mode: If True, pattern specifies aggregate bandwidth to split among UEs
         """
         self.ue_ips = ue_ips
         self.server_ip = server_ip
         self.server_port = server_port
         self.bind_port_start = bind_port_start
+        self.aggregate_mode = aggregate_mode
         self._processes: list[subprocess.Popen] = []
         self._stop_event = threading.Event()
 
@@ -148,6 +195,7 @@ class TrafficGenerator:
 
         Args:
             pattern: List of bandwidth values (Mbps) for each time slice
+                     In aggregate mode, this is the total to split among UEs
             total_duration_seconds: Total duration in seconds
             output_file: Optional file to log traffic events
         """
@@ -164,14 +212,15 @@ class TrafficGenerator:
         logger.info(f"  Slice duration: {slice_duration}s")
         logger.info(f"  UEs: {self.ue_ips}")
         logger.info(f"  Server: {self.server_ip}:{self.server_port}")
+        logger.info(f"  Aggregate mode: {self.aggregate_mode}")
 
         # Open output file if specified
         output_handle = None
         if output_file:
             output_handle = open(output_file, "w")
             output_handle.write(
-                "timestamp,timestamp_unix,slice_index,bandwidth_mbps,"
-                "ue_ip,duration_seconds\n"
+                "timestamp,timestamp_unix,slice_index,aggregate_bandwidth_mbps,"
+                "ue_ip,ue_bandwidth_mbps,duration_seconds\n"
             )
 
         start_time = time.time()
@@ -179,23 +228,32 @@ class TrafficGenerator:
 
         try:
             while not self._stop_event.is_set() and slice_index < num_slices:
-                bandwidth = pattern[slice_index]
+                aggregate_bandwidth = pattern[slice_index]
                 slice_start = time.time()
                 timestamp = datetime.now().isoformat()
 
+                # Split bandwidth among UEs
+                if self.aggregate_mode:
+                    ue_bandwidths = random_split(aggregate_bandwidth, len(self.ue_ips))
+                else:
+                    # Each UE gets the same bandwidth (legacy mode)
+                    ue_bandwidths = [aggregate_bandwidth] * len(self.ue_ips)
+
                 logger.info(
                     f"Slice {slice_index + 1}/{num_slices}: "
-                    f"Bandwidth={bandwidth}Mbps, Duration={slice_duration}s"
+                    f"Aggregate={aggregate_bandwidth}Mbps, "
+                    f"UE split={[f'{bw:.2f}' for bw in ue_bandwidths]}, "
+                    f"Duration={slice_duration}s"
                 )
 
                 # Start iperf clients for each UE
                 slice_processes = []
-                for i, ue_ip in enumerate(self.ue_ips):
+                for i, (ue_ip, ue_bw) in enumerate(zip(self.ue_ips, ue_bandwidths)):
                     bind_port = self.bind_port_start + i
 
                     process = self._run_iperf_client(
                         ue_ip=ue_ip,
-                        bandwidth_mbps=bandwidth,
+                        bandwidth_mbps=ue_bw,
                         duration_seconds=int(slice_duration),
                         bind_port=bind_port,
                     )
@@ -208,7 +266,7 @@ class TrafficGenerator:
                         if output_handle:
                             output_handle.write(
                                 f"{timestamp},{slice_start},{slice_index},"
-                                f"{bandwidth},{ue_ip},{slice_duration}\n"
+                                f"{aggregate_bandwidth},{ue_ip},{ue_bw:.4f},{slice_duration}\n"
                             )
                             output_handle.flush()
 
@@ -256,7 +314,7 @@ class TrafficGenerator:
 class TrafficPatternManager:
     """Manages traffic patterns for different scenarios."""
 
-    # Default 24-hour traffic pattern (Mbps)
+    # Default 24-hour traffic pattern (aggregate Mbps)
     DEFAULT_24H_PATTERN = [
         11.0, 8.1, 5.6, 3.6, 2.7, 1.9,  # 00:00-06:00 (night)
         3.0, 5.0, 7.1, 11.1, 11.2, 11.9,  # 06:00-12:00 (morning ramp-up)
@@ -279,6 +337,27 @@ class TrafficPatternManager:
     def scale_pattern(pattern: list[float], scale: float) -> list[float]:
         """Scale all values in a pattern by a factor."""
         return [x * scale for x in pattern]
+
+    @staticmethod
+    def get_slope(pattern: list[float], index: int) -> float:
+        """
+        Get the slope at a given index (difference from previous value).
+        
+        Args:
+            pattern: Traffic pattern
+            index: Current index
+            
+        Returns:
+            Slope (positive means increasing traffic)
+        """
+        if index <= 0 or index >= len(pattern):
+            return 0.0
+        return pattern[index] - pattern[index - 1]
+
+    @staticmethod
+    def is_positive_slope(pattern: list[float], index: int) -> bool:
+        """Check if the traffic pattern has a positive slope at the given index."""
+        return TrafficPatternManager.get_slope(pattern, index) > 0
 
 
 def main():
@@ -334,6 +413,11 @@ def main():
         action="store_true",
         help="Use the default 24-hour traffic pattern",
     )
+    parser.add_argument(
+        "--aggregate-mode",
+        action="store_true",
+        help="Treat pattern as aggregate bandwidth to split randomly among UEs",
+    )
 
     args = parser.parse_args()
 
@@ -368,6 +452,7 @@ def main():
         ue_ips=ue_ips,
         server_ip=args.server_ip,
         server_port=args.server_port,
+        aggregate_mode=args.aggregate_mode,
     )
 
     # Handle signals for graceful shutdown

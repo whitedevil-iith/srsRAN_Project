@@ -32,16 +32,22 @@ cloud deployment conditions. It supports:
 - Network bandwidth limiting (using tc)
 - Disk I/O stress (using stress-ng)
 
+In traffic_aware mode, stress is only generated when the traffic pattern
+has a positive slope (traffic is increasing). Stress probabilities are
+configurable per stress type.
+
 All stress events are tracked in a separate file with timestamps synchronized
 with the data collection samples.
 
 Usage:
-    python generate_stress.py --scenario random --duration 3600 \\
-        --containers "srscu0,srscu1,srsdu0" --output-dir ./stress_data
+    python generate_stress.py --scenario traffic_aware --duration 3600 \\
+        --containers "srscu0,srscu1,srsdu0" --output-dir ./stress_data \\
+        --traffic-pattern "[11.0, 8.1, ...]" --stress-prob-cpu 0.3
 """
 
 import argparse
 import csv
+import json
 import logging
 import os
 import random
@@ -517,8 +523,149 @@ class StressTracker:
         self._file.close()
 
 
+class StressProbabilities:
+    """Configurable probabilities for each stress type."""
+
+    def __init__(
+        self,
+        cpu: float = 0.3,
+        memory: float = 0.2,
+        io: float = 0.15,
+        network_loss: float = 0.1,
+        network_latency: float = 0.15,
+        disk: float = 0.1,
+    ):
+        self.cpu = cpu
+        self.memory = memory
+        self.io = io
+        self.network_loss = network_loss
+        self.network_latency = network_latency
+        self.disk = disk
+
+    def normalize(self) -> dict[str, float]:
+        """Normalize probabilities to sum to 1.0."""
+        total = self.cpu + self.memory + self.io + self.network_loss + self.network_latency + self.disk
+        if total == 0:
+            return {}
+        return {
+            "cpu": self.cpu / total,
+            "memory": self.memory / total,
+            "io": self.io / total,
+            "network_loss": self.network_loss / total,
+            "network_latency": self.network_latency / total,
+            "disk": self.disk / total,
+        }
+
+
 class StressScenario:
     """Defines stress scenarios for testing."""
+
+    @staticmethod
+    def _get_traffic_slope(pattern: list[float], slice_index: int) -> float:
+        """Get the slope of traffic at given slice index."""
+        if slice_index <= 0 or slice_index >= len(pattern):
+            return 0.0
+        return pattern[slice_index] - pattern[slice_index - 1]
+
+    @staticmethod
+    def _is_positive_slope(pattern: list[float], slice_index: int) -> bool:
+        """Check if traffic has positive slope at given slice index."""
+        return StressScenario._get_traffic_slope(pattern, slice_index) > 0
+
+    @staticmethod
+    def traffic_aware_stress(
+        applicator: StressApplicator,
+        tracker: StressTracker,
+        containers: list[str],
+        duration: float,
+        traffic_pattern: list[float],
+        probabilities: StressProbabilities,
+        interval_range: tuple[float, float] = (10.0, 60.0),
+        stress_duration_range: tuple[float, float] = (5.0, 30.0),
+    ) -> None:
+        """
+        Apply random stresses only during positive traffic slope.
+
+        Stress is only applied when the traffic pattern indicates increasing
+        traffic (positive slope). Probabilities for each stress type are configurable.
+
+        Args:
+            applicator: StressApplicator instance
+            tracker: StressTracker instance
+            containers: List of container names
+            duration: Total scenario duration
+            traffic_pattern: List of traffic values for slope detection
+            probabilities: Stress type probabilities
+            interval_range: Range for interval between stresses
+            stress_duration_range: Range for stress duration
+        """
+        # Build weighted stress functions based on probabilities
+        normalized_probs = probabilities.normalize()
+        
+        # Validate that we have non-zero probabilities
+        if not normalized_probs:
+            logger.warning("All stress probabilities are zero, no stresses will be applied")
+            return
+        
+        stress_functions = {
+            "cpu": lambda c, d: applicator.apply_cpu_stress(c, random.uniform(20, 80), d),
+            "memory": lambda c, d: applicator.apply_memory_stress(c, random.uniform(100, 500), d),
+            "io": lambda c, d: applicator.apply_io_stress(c, random.randint(1, 4), d),
+            "network_loss": lambda c, d: applicator.apply_network_loss(c, random.uniform(1, 10), d),
+            "network_latency": lambda c, d: applicator.apply_network_latency(c, random.uniform(10, 100), d),
+            "disk": lambda c, d: applicator.apply_disk_stress(c, random.randint(1, 2), d),
+        }
+
+        start_time = time.time()
+        stop_event = threading.Event()
+
+        def signal_handler(sig, frame):
+            stop_event.set()
+
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+
+        num_slices = len(traffic_pattern)
+        slice_duration = duration / num_slices if num_slices > 0 else duration
+
+        logger.info(f"Traffic-aware stress generation:")
+        logger.info(f"  Traffic pattern: {num_slices} slices")
+        logger.info(f"  Slice duration: {slice_duration:.2f}s")
+        logger.info(f"  Probabilities: {normalized_probs}")
+
+        while not stop_event.is_set() and (time.time() - start_time) < duration:
+            elapsed = time.time() - start_time
+            current_slice = int(elapsed / slice_duration) if slice_duration > 0 else 0
+            current_slice = min(current_slice, num_slices - 1)
+
+            # Check if traffic has positive slope
+            if StressScenario._is_positive_slope(traffic_pattern, current_slice):
+                # Select stress type based on probabilities
+                stress_types = list(normalized_probs.keys())
+                weights = [normalized_probs[t] for t in stress_types]
+                
+                # Validate weights before calling random.choices
+                if stress_types and sum(weights) > 0:
+                    selected_type = random.choices(stress_types, weights=weights, k=1)[0]
+                    stress_func = stress_functions[selected_type]
+
+                    # Select random container and apply stress
+                    container = random.choice(containers)
+                    stress_dur = random.uniform(*stress_duration_range)
+
+                    logger.info(
+                        f"Slice {current_slice}: Positive slope detected, "
+                        f"applying {selected_type} stress to {container}"
+                    )
+
+                    event = stress_func(container, stress_dur)
+                    tracker.record_event(event)
+            else:
+                logger.debug(f"Slice {current_slice}: No positive slope, skipping stress")
+
+            # Wait for random interval
+            interval = random.uniform(*interval_range)
+            stop_event.wait(min(interval, duration - (time.time() - start_time)))
 
     @staticmethod
     def random_stress(
@@ -629,9 +776,9 @@ def main():
     parser.add_argument(
         "--scenario",
         type=str,
-        choices=["random", "sequential", "custom"],
+        choices=["random", "sequential", "traffic_aware", "custom"],
         default="random",
-        help="Stress scenario type (default: random)",
+        help="Stress scenario type (default: random). Use 'traffic_aware' for stress only during positive traffic slope",
     )
     parser.add_argument(
         "--duration",
@@ -675,6 +822,50 @@ def main():
         default=30.0,
         help="Maximum stress duration (seconds)",
     )
+    # Traffic-aware scenario arguments
+    parser.add_argument(
+        "--traffic-pattern",
+        type=str,
+        default=None,
+        help="Traffic pattern for slope detection (JSON array). Required for traffic_aware scenario.",
+    )
+    # Stress probability arguments
+    parser.add_argument(
+        "--stress-prob-cpu",
+        type=float,
+        default=0.3,
+        help="Probability for CPU stress (0.0-1.0). Default: 0.3",
+    )
+    parser.add_argument(
+        "--stress-prob-memory",
+        type=float,
+        default=0.2,
+        help="Probability for memory stress (0.0-1.0). Default: 0.2",
+    )
+    parser.add_argument(
+        "--stress-prob-io",
+        type=float,
+        default=0.15,
+        help="Probability for I/O stress (0.0-1.0). Default: 0.15",
+    )
+    parser.add_argument(
+        "--stress-prob-network-loss",
+        type=float,
+        default=0.1,
+        help="Probability for network loss stress (0.0-1.0). Default: 0.1",
+    )
+    parser.add_argument(
+        "--stress-prob-network-latency",
+        type=float,
+        default=0.15,
+        help="Probability for network latency stress (0.0-1.0). Default: 0.15",
+    )
+    parser.add_argument(
+        "--stress-prob-disk",
+        type=float,
+        default=0.1,
+        help="Probability for disk stress (0.0-1.0). Default: 0.1",
+    )
 
     args = parser.parse_args()
 
@@ -687,6 +878,39 @@ def main():
 
     # Parse containers
     containers = [c.strip() for c in args.containers.split(",")]
+
+    # Parse traffic pattern if provided
+    traffic_pattern = None
+    if args.traffic_pattern:
+        try:
+            traffic_pattern = json.loads(args.traffic_pattern)
+            if not isinstance(traffic_pattern, list):
+                raise ValueError("Traffic pattern must be a list")
+            traffic_pattern = [float(x) for x in traffic_pattern]
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Invalid traffic pattern: {e}")
+            sys.exit(1)
+
+    # Validate traffic_aware scenario has traffic pattern
+    if args.scenario == "traffic_aware" and not traffic_pattern:
+        # Use default pattern
+        traffic_pattern = [
+            11.0, 8.1, 5.6, 3.6, 2.7, 1.9,
+            3.0, 5.0, 7.1, 11.1, 11.2, 11.9,
+            12.3, 13.0, 13.1, 12.9, 12.7, 12.4,
+            12.2, 12.0, 13.0, 14.0, 15.0, 14.0,
+        ]
+        logger.info("Using default traffic pattern for traffic_aware scenario")
+
+    # Create stress probabilities
+    probabilities = StressProbabilities(
+        cpu=args.stress_prob_cpu,
+        memory=args.stress_prob_memory,
+        io=args.stress_prob_io,
+        network_loss=args.stress_prob_network_loss,
+        network_latency=args.stress_prob_network_latency,
+        disk=args.stress_prob_disk,
+    )
 
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
@@ -704,6 +928,13 @@ def main():
     logger.info(f"  Duration: {duration_seconds}s")
     logger.info(f"  Containers: {containers}")
     logger.info(f"  Output: {output_file}")
+    if args.scenario == "traffic_aware":
+        logger.info(f"  Traffic pattern: {len(traffic_pattern)} slices")
+        logger.info(f"  Stress probabilities: CPU={args.stress_prob_cpu}, "
+                   f"Memory={args.stress_prob_memory}, IO={args.stress_prob_io}, "
+                   f"NetLoss={args.stress_prob_network_loss}, "
+                   f"NetLatency={args.stress_prob_network_latency}, "
+                   f"Disk={args.stress_prob_disk}")
 
     try:
         if args.scenario == "random":
@@ -720,6 +951,17 @@ def main():
                 applicator=applicator,
                 tracker=tracker,
                 containers=containers,
+            )
+        elif args.scenario == "traffic_aware":
+            StressScenario.traffic_aware_stress(
+                applicator=applicator,
+                tracker=tracker,
+                containers=containers,
+                duration=duration_seconds,
+                traffic_pattern=traffic_pattern,
+                probabilities=probabilities,
+                interval_range=(args.min_interval, args.max_interval),
+                stress_duration_range=(args.min_stress_duration, args.max_stress_duration),
             )
 
     except KeyboardInterrupt:

@@ -21,11 +21,13 @@
 # =============================================================================
 # Docker Compose with srsRAN 4G UEs
 # =============================================================================
-# This configuration uses srsRAN_4G UEs instead of test_mode UEs for more
-# realistic traffic generation and testing scenarios.
+# Topology:
+#   - CU0 → DU0, DU1 (2 DUs, each with 2 UEs = 4 UEs)
+#   - CU1 → DU2 (1 DU with 2 UEs = 2 UEs)
+#   - Total: 2 CUs, 3 DUs, 6 UEs
 #
-# The UEs connect via ZMQ to the RU nodes and can generate iperf traffic
-# based on configurable patterns.
+# Traffic generation: Aggregate traffic follows the pattern, randomly split among UEs
+# Stress generation: Only during positive traffic slope, with configurable probabilities
 #
 
 # Volumes definition
@@ -73,6 +75,8 @@ services:
 
   # =============================================================================
   # CU Nodes (Central Units)
+  # CU0 connects to DU0 and DU1 (2 DUs)
+  # CU1 connects to DU2 (1 DU)
   # =============================================================================
   cu0:
     container_name: srscu0
@@ -111,8 +115,44 @@ services:
           cpus: "2.0"
           memory: 4G
 
+  cu1:
+    container_name: srscu1
+    image: srsran/gnb
+    stdin_open: true
+    tty: true
+    privileged: true
+    cap_add:
+      - SYS_NICE
+      - CAP_SYS_PTRACE
+    volumes:
+      - /dev/bus/usb/:/dev/bus/usb/
+      - /usr/share/uhd/images:/usr/share/uhd/images
+      - ${CU1_CONFIG_PATH:-./configs/cu1_srsue.yml}:/config/cu.conf:ro
+    environment:
+      - CADVISOR_ENDPOINT=http://cadvisor:8080
+      - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.10.2
+    depends_on:
+      5gc:
+        condition: service_healthy
+      cu0:
+        condition: service_started
+    command: srscu -c /config/cu.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "2.0"
+          memory: 4G
+
   # =============================================================================
-  # DU Nodes (Distributed Units) - Without test_mode, using ZMQ for UE connection
+  # DU Nodes (Distributed Units)
+  # DU0, DU1 → CU0 (each with 2 UEs)
+  # DU2 → CU1 (with 2 UEs)
   # =============================================================================
   du0:
     container_name: srsdu0
@@ -178,10 +218,43 @@ services:
           cpus: "4.0"
           memory: 4G
 
+  du2:
+    container_name: srsdu2
+    image: srsran/gnb
+    stdin_open: true
+    tty: true
+    privileged: true
+    cap_add:
+      - SYS_NICE
+      - CAP_SYS_PTRACE
+    volumes:
+      - /dev/bus/usb/:/dev/bus/usb/
+      - /usr/share/uhd/images:/usr/share/uhd/images
+      - ${DU2_CONFIG_PATH:-./configs/du2_srsue.yml}:/config/du.conf:ro
+    environment:
+      - CADVISOR_ENDPOINT=http://cadvisor:8080
+      - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.1.14
+    depends_on:
+      cu1:
+        condition: service_started
+    command: srsdu -c /config/du.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "4.0"
+          memory: 4G
+
   # =============================================================================
-  # srsRAN 4G UEs
-  # These UEs use the srsRAN_4G project for realistic UE simulation
-  # https://github.com/srsran/srsRAN_4G
+  # srsRAN 4G UEs (6 UEs total, 2 per DU)
+  # DU0: srsue0, srsue1
+  # DU1: srsue2, srsue3
+  # DU2: srsue4, srsue5
   # =============================================================================
   srsue0:
     container_name: srsue0
@@ -320,6 +393,72 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  srsue4:
+    container_name: srsue4
+    image: srsran/srsue
+    stdin_open: true
+    tty: true
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE
+    volumes:
+      - ${UE4_CONFIG_PATH:-./configs/ue4.conf}:/config/ue.conf:ro
+      - ue-storage:/tmp
+      - ./scripts:/scripts:ro
+    environment:
+      - UE_ID=4
+      - IPERF_SERVER_IP=10.45.0.1
+      - IPERF_SERVER_PORT=5001
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.1.34
+    depends_on:
+      du2:
+        condition: service_started
+    command: srsue /config/ue.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  srsue5:
+    container_name: srsue5
+    image: srsran/srsue
+    stdin_open: true
+    tty: true
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE
+    volumes:
+      - ${UE5_CONFIG_PATH:-./configs/ue5.conf}:/config/ue.conf:ro
+      - ue-storage:/tmp
+      - ./scripts:/scripts:ro
+    environment:
+      - UE_ID=5
+      - IPERF_SERVER_IP=10.45.0.1
+      - IPERF_SERVER_PORT=5001
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.1.35
+    depends_on:
+      du2:
+        condition: service_started
+    command: srsue /config/ue.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
   # =============================================================================
   # iperf Server for Traffic Testing
   # =============================================================================
@@ -341,7 +480,7 @@ services:
 
   # =============================================================================
   # Traffic Generator
-  # Generates iperf UDP traffic based on the specified distribution
+  # Generates iperf UDP traffic with aggregate pattern split randomly among UEs
   # =============================================================================
   traffic-generator:
     container_name: traffic_generator
@@ -350,10 +489,10 @@ services:
       - ../scripts/data_collection:/scripts:ro
       - ue-storage:/data
     environment:
-      # Traffic pattern (Mbps for each time slice)
+      # Traffic pattern (aggregate Mbps for each time slice, split randomly among UEs)
       - TRAFFIC_PATTERN=[11.0, 8.1, 5.6, 3.6, 2.7, 1.9, 3.0, 5.0, 7.1, 11.1, 11.2, 11.9, 12.3, 13.0, 13.1, 12.9, 12.7, 12.4, 12.2, 12.0, 13.0, 14.0, 15.0, 14.0]
       - TRAFFIC_DURATION=24h
-      - UE_IPS=10.45.0.2,10.45.0.3,10.45.0.4,10.45.0.5
+      - UE_IPS=10.45.0.2,10.45.0.3,10.45.0.4,10.45.0.5,10.45.0.6,10.45.0.7
       - SERVER_IP=175.53.1.100
       - SERVER_PORT=5001
     working_dir: /scripts
@@ -366,6 +505,7 @@ services:
           --ue-ips '${UE_IPS}'
           --server-ip '${SERVER_IP}'
           --server-port '${SERVER_PORT}'
+          --aggregate-mode
           --output-file /data/traffic_log.csv
       "
     networks:
@@ -376,6 +516,8 @@ services:
       - srsue1
       - srsue2
       - srsue3
+      - srsue4
+      - srsue5
       - iperf-server
 
   # =============================================================================
@@ -392,7 +534,7 @@ services:
       - COLLECTION_INTERVAL=1
       - CADVISOR_URL=http://175.40.1.7:8080
       - NODE_EXPORTER_URL=http://175.40.1.8:9100
-      - E2_NODES=cu0:srscu0:175.53.10.1:8001,du0:srsdu0:175.53.1.10:8001,du1:srsdu1:175.53.1.13:8001
+      - E2_NODES=cu0:srscu0:175.53.10.1:8001,cu1:srscu1:175.53.10.2:8001,du0:srsdu0:175.53.1.10:8001,du1:srsdu1:175.53.1.13:8001,du2:srsdu2:175.53.1.14:8001
     working_dir: /scripts
     command: >
       bash -c "
@@ -409,14 +551,16 @@ services:
         ipv4_address: 175.53.1.102
     depends_on:
       - cu0
+      - cu1
       - du0
       - du1
+      - du2
       - cadvisor
       - node-exporter
 
   # =============================================================================
   # Stress Generator
-  # Generates various stresses on containers
+  # Generates stresses only during positive traffic slope with configurable probabilities
   # =============================================================================
   stress-generator:
     container_name: stress_generator
@@ -427,9 +571,18 @@ services:
       - ue-storage:/data
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - STRESS_SCENARIO=random
+      - STRESS_SCENARIO=traffic_aware
       - STRESS_DURATION=24h
-      - CONTAINERS=srscu0,srsdu0,srsdu1
+      - CONTAINERS=srscu0,srscu1,srsdu0,srsdu1,srsdu2
+      # Stress probabilities (0.0-1.0) for each stress type
+      - STRESS_PROB_CPU=0.3
+      - STRESS_PROB_MEMORY=0.2
+      - STRESS_PROB_IO=0.15
+      - STRESS_PROB_NETWORK_LOSS=0.1
+      - STRESS_PROB_NETWORK_LATENCY=0.15
+      - STRESS_PROB_DISK=0.1
+      # Traffic pattern for slope detection
+      - TRAFFIC_PATTERN=[11.0, 8.1, 5.6, 3.6, 2.7, 1.9, 3.0, 5.0, 7.1, 11.1, 11.2, 11.9, 12.3, 13.0, 13.1, 12.9, 12.7, 12.4, 12.2, 12.0, 13.0, 14.0, 15.0, 14.0]
     working_dir: /scripts
     command: >
       bash -c "
@@ -440,14 +593,23 @@ services:
           --duration '${STRESS_DURATION}'
           --containers '${CONTAINERS}'
           --output-dir /data/stress
+          --traffic-pattern '${TRAFFIC_PATTERN}'
+          --stress-prob-cpu ${STRESS_PROB_CPU}
+          --stress-prob-memory ${STRESS_PROB_MEMORY}
+          --stress-prob-io ${STRESS_PROB_IO}
+          --stress-prob-network-loss ${STRESS_PROB_NETWORK_LOSS}
+          --stress-prob-network-latency ${STRESS_PROB_NETWORK_LATENCY}
+          --stress-prob-disk ${STRESS_PROB_DISK}
       "
     networks:
       oran-intel:
         ipv4_address: 175.53.1.103
     depends_on:
       - cu0
+      - cu1
       - du0
       - du1
+      - du2
 
   # =============================================================================
   # Monitoring Infrastructure

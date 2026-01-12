@@ -1,0 +1,104 @@
+# =============================================================================
+# srsRAN CU1 Configuration for srsUE Mode (ZMQ)
+# =============================================================================
+# Configuration file for CU1 (Central Unit) used with srsRAN_4G UEs
+# CU1 connects to DU2 and provides connectivity to 5GC
+#
+
+# =============================================================================
+# CU-CP Configuration (Control Plane)
+# =============================================================================
+cu_cp:
+  # AMF (Access and Mobility Management Function) Configuration
+  amf:
+    addr: 175.53.1.2
+    bind_addr: 175.53.10.2
+    supported_tracking_areas:
+      - tac: 7
+        plmn_list:
+          - plmn: "00101"
+            tai_slice_support_list:
+              - sst: 1
+
+  # F1AP Configuration (CU to DU interface)
+  f1ap:
+    bind_addr: 175.53.10.2
+    procedure_timeout: 10000
+
+  # E1AP Configuration (CU-CP to CU-UP interface)
+  e1ap:
+    procedure_timeout: 10000
+
+# =============================================================================
+# CU-UP Configuration (User Plane)
+# =============================================================================
+cu_up:
+  ngu:
+    socket:
+      - bind_addr: 175.53.10.2
+  f1u:
+    bind_port: 2153
+    peer_port: 2153
+    socket:
+      - bind_addr: 175.53.10.2
+
+# =============================================================================
+# Metrics Configuration
+# =============================================================================
+metrics:
+  enable_json: true
+
+  layers:
+    enable_app_usage: true
+    enable_ngap: true
+    enable_rrc: true
+    enable_e1ap: true
+    enable_pdcp: true
+
+  periodicity:
+    app_usage_report_period: 1000
+    cu_cp_report_period: 1000
+    cu_up_report_period: 1000
+
+# =============================================================================
+# External Metrics Configuration
+# =============================================================================
+external_metrics:
+  enable: true
+  cadvisor_endpoint: "http://175.40.1.7:8080/api/v1.3/docker"
+  node_exporter_endpoint: "http://175.40.1.8:9100/metrics"
+  metrics:
+    enable_log: true
+    enable_json: true
+    enable_verbose: true
+
+# =============================================================================
+# Remote Control Configuration
+# =============================================================================
+remote_control:
+  enabled: true
+  bind_addr: "0.0.0.0"
+  port: 8001
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+log:
+  filename: /tmp/cu.log
+  all_level: info
+  hex_max_size: 32
+
+# =============================================================================
+# PCAP Configuration (Packet Capture)
+# =============================================================================
+pcap:
+  ngap_enable: false
+  ngap_filename: /tmp/cu_ngap.pcap
+  f1ap_enable: false
+  f1ap_filename: /tmp/cu_f1ap.pcap
+  e1ap_enable: false
+  e1ap_filename: /tmp/cu_e1ap.pcap
+  f1u_enable: false
+  f1u_filename: /tmp/cu_f1u.pcap
+  n3_enable: false
+  n3_filename: /tmp/cu_n3.pcap
