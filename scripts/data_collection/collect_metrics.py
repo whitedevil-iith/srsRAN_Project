@@ -100,58 +100,6 @@ def calculate_stats(values: list[float]) -> dict[str, float]:
     }
 
 
-def aggregate_metrics_by_base_name(
-    metrics: dict[str, float], 
-    aggregation_patterns: list[str]
-) -> dict[str, float]:
-    """
-    Aggregate metrics by base name, computing avg/min/max/stddev.
-    
-    This groups metrics like:
-    - node_cpu_seconds_total{cpu="0"} and node_cpu_seconds_total{cpu="1"}
-    - node_network_receive_bytes_total{device="eth0"} and {device="eth1"}
-    
-    Args:
-        metrics: Dictionary of metric names to values
-        aggregation_patterns: List of regex patterns to match metrics for aggregation
-        
-    Returns:
-        Dictionary with aggregated metrics
-    """
-    # Group values by base metric name (without per-device labels)
-    grouped: dict[str, list[float]] = defaultdict(list)
-    non_aggregated: dict[str, float] = {}
-    
-    for metric_name, value in metrics.items():
-        should_aggregate = False
-        base_name = None
-        
-        for pattern in aggregation_patterns:
-            match = re.match(pattern, metric_name)
-            if match:
-                # Extract base name from the metric
-                base_name = match.group("base") if "base" in match.groupindex else match.group(0)
-                should_aggregate = True
-                break
-        
-        if should_aggregate and base_name:
-            grouped[base_name].append(value)
-        else:
-            non_aggregated[metric_name] = value
-    
-    # Calculate statistics for grouped metrics
-    result = {}
-    for base_name, values in grouped.items():
-        stats = calculate_stats(values)
-        for stat_name, stat_value in stats.items():
-            result[f"{base_name}_{stat_name}"] = stat_value
-    
-    # Add non-aggregated metrics
-    result.update(non_aggregated)
-    
-    return result
-
-
 class CounterToGaugeConverter:
     """Converts counter metrics to gauge by calculating rate."""
 
@@ -238,26 +186,26 @@ class MetricsCollector:
     # Pattern format: regex with 'base' group to extract base metric name
     CADVISOR_AGGREGATION_PATTERNS = [
         # CPU metrics (per-cpu aggregation)
-        r"(?P<base>container_cpu_[a-z_]+)_\{.*cpu=.*\}",
+        r"(?P<base>container_cpu_[a-zA-Z0-9_]+)_\{.*cpu=.*\}",
         # Network metrics (per-interface aggregation)
-        r"(?P<base>container_network_[a-z_]+)_\{.*interface=.*\}",
+        r"(?P<base>container_network_[a-zA-Z0-9_]+)_\{.*interface=.*\}",
         # Filesystem metrics (per-device aggregation)
-        r"(?P<base>container_fs_[a-z_]+)_\{.*device=.*\}",
+        r"(?P<base>container_fs_[a-zA-Z0-9_]+)_\{.*device=.*\}",
         # Block I/O metrics (per-device aggregation)
-        r"(?P<base>container_blkio_[a-z_]+)_\{.*device=.*\}",
+        r"(?P<base>container_blkio_[a-zA-Z0-9_]+)_\{.*device=.*\}",
     ]
 
     NODE_EXPORTER_AGGREGATION_PATTERNS = [
         # CPU metrics (per-cpu aggregation)
-        r"(?P<base>node_cpu_[a-z_]+)_\{.*cpu=.*\}",
+        r"(?P<base>node_cpu_[a-zA-Z0-9_]+)_\{.*cpu=.*\}",
         # Network metrics (per-interface aggregation, exclude virtual interfaces)
-        r"(?P<base>node_network_[a-z_]+)_\{.*device=.*\}",
+        r"(?P<base>node_network_[a-zA-Z0-9_]+)_\{.*device=.*\}",
         # Disk metrics (per-device aggregation)
-        r"(?P<base>node_disk_[a-z_]+)_\{.*device=.*\}",
+        r"(?P<base>node_disk_[a-zA-Z0-9_]+)_\{.*device=.*\}",
         # Hardware metrics (per-sensor/fan aggregation)
-        r"(?P<base>node_hwmon_[a-z_]+)_\{.*\}",
-        r"(?P<base>node_thermal_[a-z_]+)_\{.*zone=.*\}",
-        r"(?P<base>node_cooling_[a-z_]+)_\{.*\}",
+        r"(?P<base>node_hwmon_[a-zA-Z0-9_]+)_\{.*\}",
+        r"(?P<base>node_thermal_[a-zA-Z0-9_]+)_\{.*zone=.*\}",
+        r"(?P<base>node_cooling_[a-zA-Z0-9_]+)_\{.*\}",
     ]
 
     def __init__(
@@ -353,7 +301,7 @@ class MetricsCollector:
             Tuple of (should_aggregate, base_name)
         """
         for pattern in patterns:
-            match = re.search(pattern, key)
+            match = re.match(pattern, key)
             if match:
                 try:
                     base_name = match.group("base")
