@@ -1,0 +1,105 @@
+# =============================================================================
+# srsRAN DU0 Configuration for srsUE Mode (ZMQ)
+# =============================================================================
+# Configuration file for DU0 (Distributed Unit) used with srsRAN_4G UEs
+# DU0 connects to CU0 and supports real UEs via ZMQ interface
+#
+
+# =============================================================================
+# F1AP Configuration (DU to CU interface)
+# =============================================================================
+f1ap:
+  cu_cp_addr: 175.53.10.1
+  bind_addr: 175.53.1.10
+
+# =============================================================================
+# F1-U Configuration (User plane to CU)
+# =============================================================================
+f1u:
+  bind_port: 2153
+  peer_port: 2153
+  socket:
+    - bind_addr: 175.53.1.10
+
+# =============================================================================
+# Radio Unit (RU) SDR Configuration - ZMQ Mode for UE Connection
+# =============================================================================
+ru_sdr:
+  device_driver: zmq
+  # tx_port sends to UE rx_port, rx_port receives from UE tx_port
+  device_args: tx_port0=tcp://175.53.1.10:2000,rx_port0=tcp://175.53.1.30:2001,tx_port1=tcp://175.53.1.10:2100,rx_port1=tcp://175.53.1.31:2001
+  srate: 23.04
+  tx_gain: 50
+  rx_gain: 40
+
+# =============================================================================
+# Cell Configuration
+# =============================================================================
+cell_cfg:
+  dl_arfcn: 368500
+  band: 3
+  channel_bandwidth_MHz: 20
+  common_scs: 15
+  plmn: "00101"
+  tac: 7
+  pci: 1
+
+# =============================================================================
+# Metrics Configuration
+# =============================================================================
+metrics:
+  autostart_stdout_metrics: true
+  enable_json: true
+
+  layers:
+    enable_app_usage: true
+    enable_sched: true
+    enable_rlc: true
+    enable_mac: true
+    enable_du_low: true
+    enable_ru: true
+
+  periodicity:
+    app_usage_report_period: 1000
+    du_report_period: 1000
+
+# =============================================================================
+# External Metrics Configuration
+# =============================================================================
+external_metrics:
+  enable: true
+  cadvisor_endpoint: "http://175.40.1.7:8080/api/v1.3/docker"
+  node_exporter_endpoint: "http://175.40.1.8:9100/metrics"
+  metrics:
+    enable_log: true
+    enable_json: true
+    enable_verbose: true
+
+# =============================================================================
+# Remote Control Configuration
+# =============================================================================
+remote_control:
+  enabled: true
+  bind_addr: "0.0.0.0"
+  port: 8001
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+log:
+  filename: /tmp/du.log
+  all_level: info
+  phy_level: warning
+  mac_level: info
+  hex_max_size: 32
+
+# =============================================================================
+# PCAP Configuration (Packet Capture)
+# =============================================================================
+pcap:
+  mac_enable: false
+  mac_filename: /tmp/du_mac.pcap
+  f1ap_enable: false
+  f1ap_filename: /tmp/du_f1ap.pcap
+  f1u_enable: false
+  f1u_filename: /tmp/du_f1u.pcap
