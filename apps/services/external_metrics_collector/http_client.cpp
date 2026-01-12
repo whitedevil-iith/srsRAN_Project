@@ -21,7 +21,6 @@
  */
 
 #include "http_client.h"
-#include "srsran/support/format/fmt_to_c_str.h"
 #include <arpa/inet.h>
 #include <cstring>
 #include <netdb.h>
@@ -32,14 +31,14 @@
 using namespace srsran;
 using namespace app_services;
 
-expected<std::string> http_client::get(const std::string& url)
+std::string http_client::get(const std::string& url)
 {
   // Parse URL to extract host, port, and path
   std::regex  url_regex(R"(^http://([^:/]+)(?::(\d+))?(/.*)?$)");
   std::smatch matches;
 
   if (!std::regex_match(url, matches, url_regex)) {
-    return make_unexpected(std::string("Invalid URL format"));
+    return "";
   }
 
   std::string host = matches[1].str();
@@ -53,14 +52,14 @@ expected<std::string> http_client::get(const std::string& url)
   hints.ai_protocol = IPPROTO_TCP;
 
   if (getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &addrs) != 0) {
-    return make_unexpected(fmt::format("Failed to resolve host: {}", host));
+    return "";
   }
 
   // Create socket
   int sock = socket(addrs->ai_family, addrs->ai_socktype, addrs->ai_protocol);
   if (sock < 0) {
     freeaddrinfo(addrs);
-    return make_unexpected(std::string("Failed to create socket"));
+    return "";
   }
 
   // Set timeout
@@ -74,22 +73,20 @@ expected<std::string> http_client::get(const std::string& url)
   if (connect(sock, addrs->ai_addr, addrs->ai_addrlen) < 0) {
     close(sock);
     freeaddrinfo(addrs);
-    return make_unexpected(fmt::format("Failed to connect to {}:{}", host, port));
+    return "";
   }
   freeaddrinfo(addrs);
 
   // Build HTTP request
-  std::string request = fmt::format("GET {} HTTP/1.1\r\n"
-                                    "Host: {}\r\n"
-                                    "Connection: close\r\n"
-                                    "\r\n",
-                                    path,
-                                    host);
+  std::string request = "GET " + path + " HTTP/1.1\r\n" +
+                        "Host: " + host + "\r\n" +
+                        "Connection: close\r\n" +
+                        "\r\n";
 
   // Send request
   if (send(sock, request.c_str(), request.length(), 0) < 0) {
     close(sock);
-    return make_unexpected(std::string("Failed to send request"));
+    return "";
   }
 
   // Read response
@@ -105,13 +102,13 @@ expected<std::string> http_client::get(const std::string& url)
   close(sock);
 
   if (response.empty()) {
-    return make_unexpected(std::string("Empty response received"));
+    return "";
   }
 
   // Extract body from response (after "\r\n\r\n")
   size_t body_pos = response.find("\r\n\r\n");
   if (body_pos == std::string::npos) {
-    return make_unexpected(std::string("Invalid HTTP response format"));
+    return "";
   }
 
   std::string body = response.substr(body_pos + 4);

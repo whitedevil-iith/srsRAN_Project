@@ -28,13 +28,13 @@ using namespace app_services;
 
 void cadvisor_metrics_producer_impl::on_new_report_period()
 {
-  auto response = http_client::get(endpoint);
-  if (!response) {
-    logger.warning("Failed to fetch cAdvisor metrics: {}", response.error());
+  std::string response = http_client::get(endpoint);
+  if (response.empty()) {
+    logger.warning("Failed to fetch cAdvisor metrics from endpoint: {}", endpoint);
     return;
   }
 
-  cadvisor_metrics new_metrics = parse_cadvisor_response(response.value());
+  cadvisor_metrics new_metrics = parse_cadvisor_response(response);
   notifier.on_new_metric(cadvisor_metrics_impl(new_metrics));
 }
 

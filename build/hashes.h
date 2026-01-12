@@ -22,20 +22,24 @@
 
 #pragma once
 
-#include <string>
-
 namespace srsran {
-namespace app_services {
 
-/// Simple HTTP client for fetching metrics from external endpoints.
-class http_client
-{
-public:
-  /// Performs an HTTP GET request to the specified URL.
-  /// \param url The URL to fetch (e.g., "http://localhost:8080/metrics").
-  /// \return The response body on success, or an empty string on failure.
-  static std::string get(const std::string& url);
-};
+#ifdef BUILD_TYPE_RELEASE
+static const char build_mode[] = "Release";
+#else
+#ifdef BUILD_TYPE_DEBUG
+static const char build_mode[] = "Debug";
+#else
+#ifdef BUILD_TYPE_RELWITHDEBINFO
+static const char build_mode[] = "RelWithDebInfo";
+#else
+static const char build_mode[] = "unknown";
+#endif
+#endif
+#endif
 
-} // namespace app_services
+static const char build_hash[] = "535cdf3";
+
+static const char build_info[] = "commit 535cdf3 on branch copilot/extend-metrics-server-collection";
+
 } // namespace srsran

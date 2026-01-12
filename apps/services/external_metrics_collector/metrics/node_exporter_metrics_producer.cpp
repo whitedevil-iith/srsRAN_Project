@@ -29,13 +29,13 @@ using namespace app_services;
 
 void node_exporter_metrics_producer_impl::on_new_report_period()
 {
-  auto response = http_client::get(endpoint);
-  if (!response) {
-    logger.warning("Failed to fetch Node Exporter metrics: {}", response.error());
+  std::string response = http_client::get(endpoint);
+  if (response.empty()) {
+    logger.warning("Failed to fetch Node Exporter metrics from endpoint: {}", endpoint);
     return;
   }
 
-  node_exporter_metrics new_metrics = parse_node_exporter_response(response.value());
+  node_exporter_metrics new_metrics = parse_node_exporter_response(response);
   notifier.on_new_metric(node_exporter_metrics_impl(new_metrics));
 }
 
