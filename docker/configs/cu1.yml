@@ -33,6 +33,9 @@ cu_cp:
 # CU-UP Configuration (User Plane)
 # =============================================================================
 cu_up:
+  ngu:
+    socket:
+      - bind_addr: 175.53.10.2
   f1u:
     socket:
       - bind_addr: 175.53.10.2
