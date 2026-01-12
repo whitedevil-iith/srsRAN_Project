@@ -1,0 +1,296 @@
+# Volumes definition
+volumes:
+  grafana-storage:
+  influxdb-storage:
+# Network definition
+networks:
+  oran-intel:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 175.0.0.0/8
+services:
+  5gc:
+    container_name: open5gs_5gc
+    build:
+      context: ../srsRAN_Project/docker/open5gs
+      target: open5gs
+      args:
+        OS_VERSION: "22.04"
+        OPEN5GS_VERSION: "v2.7.0"
+    env_file:
+      - ./open5gs/open5gs.env
+    privileged: true
+    ports:
+      - "9999:9999/tcp"
+    # Uncomment port to use the 5gc from outside the docker network
+      - "38412:38412/sctp"
+      - "2152:2152/udp"
+    command: 5gc -c open5gs-5gc.yml
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -z 127.0.0.20 7777" ]
+      interval: 3s
+      timeout: 1s
+      retries: 60
+    networks:
+      oran-intel:
+        ipv4_address: ${OPEN5GS_IP:-175.53.1.2}
+
+  cu0:
+    container_name: srscu0
+    image: srsran:main
+    build:
+      context: ../srsRAN_Project/
+      dockerfile: docker/Dockerfile
+      args:
+        OS_VERSION: "22.04"
+    stdin_open: true # docker run -i
+    tty: true        # docker run -t
+    privileged: true
+    cap_add:
+      - SYS_NICE
+      - CAP_SYS_PTRACE
+    volumes:
+      - /dev/bus/usb/:/dev/bus/usb/
+      - /usr/share/uhd/images:/usr/share/uhd/images
+      - ../../setup/config_files/cu_0.yml:/config/cu.conf:ro
+      - ../../setup/config_files/entrypoint_0.sh:/tmp/entrypoint.sh
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.10.1
+    depends_on:
+      5gc:
+        condition: service_healthy
+    command:  bash -c 'chmod +x /tmp/entrypoint.sh && /tmp/entrypoint.sh && srscu -c /config/cu.conf'
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "2.0"
+          memory: 4G
+    
+  
+  cu1:
+    container_name: srscu1
+    image: srsran:main
+    stdin_open: true # docker run -i
+    tty: true        # docker run -t
+    privileged: true
+    cap_add:
+      - SYS_NICE
+      - CAP_SYS_PTRACE
+    volumes:
+      - /dev/bus/usb/:/dev/bus/usb/
+      - /usr/share/uhd/images:/usr/share/uhd/images
+      - ../../setup/config_files/entrypoint_1.sh:/tmp/entrypoint.sh
+      - ../../setup/config_files/cu_1.yml:/config/cu.conf
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.10.2
+    depends_on:
+      5gc:
+        condition: service_healthy
+    command:  bash -c 'chmod +x /tmp/entrypoint.sh && /tmp/entrypoint.sh && srscu -c /config/cu.conf'
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "2.0"
+          memory: 4G
+  
+  du0:
+    container_name: srsdu0
+    image: srsran:main
+    stdin_open: true # docker run -i
+    tty: true        # docker run -t
+    privileged: true
+    cap_add:
+      - SYS_NICE
+      - CAP_SYS_PTRACE
+    volumes:
+      - /dev/bus/usb/:/dev/bus/usb/
+      - /usr/share/uhd/images:/usr/share/uhd/images
+      - ../../setup/config_files/du_zmq.conf:/config/du.conf
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.1.10
+    # depends_on:
+    #   - cu0
+    #   - 5gc
+    command: srsdu -c /config/du.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "4.0"
+          memory: 4G
+
+  du1:
+    container_name: srsdu1
+    image: srsran:main
+    stdin_open: true # docker run -i
+    tty: true        # docker run -t
+    privileged: true
+    cap_add:
+      - SYS_NICE
+      - CAP_SYS_PTRACE
+    volumes:
+      - /dev/bus/usb/:/dev/bus/usb/
+      - /usr/share/uhd/images:/usr/share/uhd/images
+      - ../../setup/config_files/du_zmq_1.conf:/config/du.conf
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.1.13
+    # depends_on:
+    #   - cu1
+    #   - 5gc
+    command: srsdu -c /config/du.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "4.0"
+          memory: 4G
+  
+  du2:
+    container_name: srsdu2
+    image: srsran:main
+    stdin_open: true # docker run -i
+    tty: true        # docker run -t
+    privileged: true
+    cap_add:
+      - SYS_NICE
+      - CAP_SYS_PTRACE
+    volumes:
+      - /dev/bus/usb/:/dev/bus/usb/
+      - /usr/share/uhd/images:/usr/share/uhd/images
+      - ../../setup/config_files/du_zmq_2.conf:/config/du.conf
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.1.14
+    # depends_on:
+    #   - cu2
+    #   - 5gc
+    command: srsdu -c /config/du.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "4.0"
+          memory: 4G
+
+
+  metrics-server:
+    container_name: metrics_server
+    image: srsran/metrics_server
+    build:
+      context: .
+      dockerfile: ./telegraf/Dockerfile
+
+    environment:
+      - PORT=${METRICS_SERVER_PORT}
+      - BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
+      - TESTBED=default
+      - URL=http://${DOCKER_INFLUXDB_INIT_HOST}:${DOCKER_INFLUXDB_INIT_PORT}
+      - ORG=${DOCKER_INFLUXDB_INIT_ORG}
+      - TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
+    ports:
+      - 55555:${METRICS_SERVER_PORT}/udp
+    networks:
+      oran-intel:
+        ipv4_address: 175.40.1.4 
+
+  influxdb:
+    container_name: influxdb
+    image: influxdb:${DOCKER_INFLUXDB_VERSION}
+    volumes:
+      - influxdb-storage:/var/lib/influxdb2:rw
+    env_file:
+      - .env
+    restart: on-failure:10
+    # Uncomment port section to access InfluxDB from outside the docker network
+    ports:
+      - 8086:${DOCKER_INFLUXDB_INIT_PORT}
+    networks:
+      oran-intel:
+        ipv4_address: 175.40.1.5
+
+  grafana:
+    container_name: grafana
+    image: srsran/grafana
+    build:
+      context: ./
+      dockerfile: ./grafana/Dockerfile
+    volumes:
+      - grafana-storage:/var/lib/grafana:rw
+    env_file:
+      - .env
+    depends_on:
+      - influxdb
+      - metrics-server
+    ports:
+      - 3300:${GRAFANA_PORT}
+    networks:
+      oran-intel:
+        ipv4_address: 175.40.1.6
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      oran-intel:
+        ipv4_address: 175.40.1.7
+
+  # Node Exporter - Host metrics
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node_exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /:/host:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    networks:
+      oran-intel:
+        ipv4_address: 175.40.1.8
+    pid: host
+  
+  
+
+  
+  
+
+
+
+
+
+  
