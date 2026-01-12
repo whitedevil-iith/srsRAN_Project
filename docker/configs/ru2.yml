@@ -1,9 +1,9 @@
 # =============================================================================
-# srsRAN RU2 Configuration for Docker Monitoring Deployment (ZMQ Mode)
+# srsRAN gNB Configuration for RU2 (ZMQ Mode RF Simulation)
 # =============================================================================
-# Configuration file for RU2 (Radio Unit) used by docker-compose.monitoring.yml
-# RU2 runs as a gnb in ZMQ server mode for DU2
-# Supports 2 UEs per DU
+# Configuration file for RU2 used by docker-compose.monitoring.yml
+# This container runs a full gNB in ZMQ mode to provide RF simulation for DU2
+# Note: This is named "RU" but runs the gnb command for ZMQ-based RF testing
 #
 
 # =============================================================================
@@ -21,7 +21,7 @@ cu_cp:
               - sst: 1
 
 # =============================================================================
-# Radio Unit (RU) SDR Configuration - ZMQ Server Mode
+# Radio Unit (RU) SDR Configuration - ZMQ Mode
 # =============================================================================
 ru_sdr:
   device_driver: zmq
@@ -54,7 +54,6 @@ test_mode:
     cqi: 15
     ri: 1
     pmi: 0
-    auto_ack_indication_delay: 0
 
 # =============================================================================
 # Logging Configuration

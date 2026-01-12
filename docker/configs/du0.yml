@@ -53,7 +53,6 @@ test_mode:
     cqi: 15
     ri: 1
     pmi: 0
-    auto_ack_indication_delay: 0
 
 # =============================================================================
 # Metrics Configuration
