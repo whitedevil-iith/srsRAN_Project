@@ -16,6 +16,8 @@ f1ap:
 # F1-U Configuration (User plane to CU)
 # =============================================================================
 f1u:
+  bind_port: 2153
+  peer_port: 2153
   socket:
     - bind_addr: 175.53.1.13
 

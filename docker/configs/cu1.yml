@@ -37,6 +37,8 @@ cu_up:
     socket:
       - bind_addr: 175.53.10.2
   f1u:
+    bind_port: 2153
+    peer_port: 2153
     socket:
       - bind_addr: 175.53.10.2
 
