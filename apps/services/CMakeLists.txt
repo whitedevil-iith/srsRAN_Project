@@ -25,6 +25,7 @@ add_subdirectory(app_execution_metrics)
 add_subdirectory(app_resource_usage)
 add_subdirectory(buffer_pool)
 add_subdirectory(cmdline)
+add_subdirectory(external_metrics_collector)
 add_subdirectory(metrics)
 add_subdirectory(remote_control)
 add_subdirectory(worker_manager)
@@ -34,6 +35,7 @@ target_link_libraries(srsran_app_services INTERFACE
         srsran_exec_metrics_app_service
         srsran_buffer_pool_app_service
         srsran_cmdline_app_service
+        srsran_external_metrics_collector
         srsran_metrics_app_service
         srsran_remote_control_app_service
         srsran_resource_usage_app_service

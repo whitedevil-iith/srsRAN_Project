@@ -27,6 +27,7 @@
 #include "apps/services/app_execution_metrics/executor_metrics_config_cli11_schema.h"
 #include "apps/services/app_resource_usage/app_resource_usage_config_cli11_schema.h"
 #include "apps/services/buffer_pool/buffer_pool_appconfig_cli11_schema.h"
+#include "apps/services/external_metrics_collector/external_metrics_config_cli11_schema.h"
 #include "apps/services/metrics/metrics_config_cli11_schema.h"
 #include "apps/services/remote_control/remote_control_appconfig_cli11_schema.h"
 #include "apps/services/worker_manager/worker_manager_cli11_schema.h"
@@ -84,6 +85,7 @@ void srsran::configure_cli11_with_gnb_appconfig_schema(CLI::App& app, gnb_appcon
   app_services::configure_cli11_with_executor_metrics_appconfig_schema(app, gnb_cfg.metrics_cfg.executors_metrics_cfg);
   app_services::configure_cli11_with_app_resource_usage_config_schema(app, gnb_cfg.metrics_cfg.rusage_config);
   app_services::configure_cli11_with_metrics_appconfig_schema(app, gnb_cfg.metrics_cfg.metrics_service_cfg);
+  configure_cli11_with_external_metrics_config_schema(app, gnb_cfg.metrics_cfg.external_metrics_cfg);
 
 #ifdef DPDK_FOUND
   // HAL section.
