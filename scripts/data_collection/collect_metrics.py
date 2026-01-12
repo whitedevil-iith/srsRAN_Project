@@ -23,12 +23,15 @@
 Data Collection Script for O-RAN E2 Nodes
 
 This script collects metrics from all E2 nodes (CUs, DUs), including:
-- cAdvisor container metrics
-- Node Exporter host system metrics
-- srsRAN application metrics from all layers
+- cAdvisor container metrics (prefixed with "cAdvisor_")
+- Node Exporter host system metrics (prefixed with "nodeExporter_")
+- srsRAN application metrics from all layers (prefixed with "CU_" or "DU_")
 
 All counter metrics are converted to gauge metrics by calculating the rate
 (difference of values / difference of timestamps).
+
+Metrics are aggregated (avg, min, max, stddev) instead of per-device/per-interface
+to make them host-agnostic.
 
 Data is saved separately for each E2 node with timestamp as the primary key
 for time synchronization.
@@ -41,11 +44,14 @@ import argparse
 import csv
 import json
 import logging
+import math
 import os
+import re
 import signal
 import sys
 import threading
 import time
+from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
@@ -59,6 +65,91 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
+
+
+def calculate_stats(values: list[float]) -> dict[str, float]:
+    """
+    Calculate aggregate statistics for a list of values.
+    
+    Args:
+        values: List of numeric values
+        
+    Returns:
+        Dictionary with avg, min, max, and stddev
+    """
+    if not values:
+        return {}
+    
+    n = len(values)
+    avg = sum(values) / n
+    min_val = min(values)
+    max_val = max(values)
+    
+    # Calculate standard deviation
+    if n > 1:
+        variance = sum((x - avg) ** 2 for x in values) / (n - 1)
+        stddev = math.sqrt(variance)
+    else:
+        stddev = 0.0
+    
+    return {
+        "avg": avg,
+        "min": min_val,
+        "max": max_val,
+        "stddev": stddev,
+    }
+
+
+def aggregate_metrics_by_base_name(
+    metrics: dict[str, float], 
+    aggregation_patterns: list[str]
+) -> dict[str, float]:
+    """
+    Aggregate metrics by base name, computing avg/min/max/stddev.
+    
+    This groups metrics like:
+    - node_cpu_seconds_total{cpu="0"} and node_cpu_seconds_total{cpu="1"}
+    - node_network_receive_bytes_total{device="eth0"} and {device="eth1"}
+    
+    Args:
+        metrics: Dictionary of metric names to values
+        aggregation_patterns: List of regex patterns to match metrics for aggregation
+        
+    Returns:
+        Dictionary with aggregated metrics
+    """
+    # Group values by base metric name (without per-device labels)
+    grouped: dict[str, list[float]] = defaultdict(list)
+    non_aggregated: dict[str, float] = {}
+    
+    for metric_name, value in metrics.items():
+        should_aggregate = False
+        base_name = None
+        
+        for pattern in aggregation_patterns:
+            match = re.match(pattern, metric_name)
+            if match:
+                # Extract base name from the metric
+                base_name = match.group("base") if "base" in match.groupindex else match.group(0)
+                should_aggregate = True
+                break
+        
+        if should_aggregate and base_name:
+            grouped[base_name].append(value)
+        else:
+            non_aggregated[metric_name] = value
+    
+    # Calculate statistics for grouped metrics
+    result = {}
+    for base_name, values in grouped.items():
+        stats = calculate_stats(values)
+        for stat_name, stat_value in stats.items():
+            result[f"{base_name}_{stat_name}"] = stat_value
+    
+    # Add non-aggregated metrics
+    result.update(non_aggregated)
+    
+    return result
 
 
 class CounterToGaugeConverter:
@@ -143,6 +234,32 @@ class MetricsCollector:
         "node_vmstat_pgpgout",
     }
 
+    # Patterns for metrics that should be aggregated (per-CPU, per-interface, per-device)
+    # Pattern format: regex with 'base' group to extract base metric name
+    CADVISOR_AGGREGATION_PATTERNS = [
+        # CPU metrics (per-cpu aggregation)
+        r"(?P<base>container_cpu_[a-z_]+)_\{.*cpu=.*\}",
+        # Network metrics (per-interface aggregation)
+        r"(?P<base>container_network_[a-z_]+)_\{.*interface=.*\}",
+        # Filesystem metrics (per-device aggregation)
+        r"(?P<base>container_fs_[a-z_]+)_\{.*device=.*\}",
+        # Block I/O metrics (per-device aggregation)
+        r"(?P<base>container_blkio_[a-z_]+)_\{.*device=.*\}",
+    ]
+
+    NODE_EXPORTER_AGGREGATION_PATTERNS = [
+        # CPU metrics (per-cpu aggregation)
+        r"(?P<base>node_cpu_[a-z_]+)_\{.*cpu=.*\}",
+        # Network metrics (per-interface aggregation, exclude virtual interfaces)
+        r"(?P<base>node_network_[a-z_]+)_\{.*device=.*\}",
+        # Disk metrics (per-device aggregation)
+        r"(?P<base>node_disk_[a-z_]+)_\{.*device=.*\}",
+        # Hardware metrics (per-sensor/fan aggregation)
+        r"(?P<base>node_hwmon_[a-z_]+)_\{.*\}",
+        r"(?P<base>node_thermal_[a-z_]+)_\{.*zone=.*\}",
+        r"(?P<base>node_cooling_[a-z_]+)_\{.*\}",
+    ]
+
     def __init__(
         self,
         cadvisor_url: str,
@@ -224,17 +341,40 @@ class MetricsCollector:
             )
         return False
 
+    def _should_aggregate_metric(self, key: str, patterns: list[str]) -> tuple[bool, str | None]:
+        """
+        Check if a metric should be aggregated and return its base name.
+        
+        Args:
+            key: The full metric key (name + labels)
+            patterns: List of regex patterns for aggregation
+            
+        Returns:
+            Tuple of (should_aggregate, base_name)
+        """
+        for pattern in patterns:
+            match = re.search(pattern, key)
+            if match:
+                try:
+                    base_name = match.group("base")
+                    return True, base_name
+                except IndexError:
+                    return True, match.group(0)
+        return False, None
+
     def collect_cadvisor_metrics(
         self, container_name: str
     ) -> dict[str, Any]:
         """
         Collect metrics from cAdvisor for a specific container.
+        Metrics are prefixed with "cAdvisor_" and aggregated (avg, min, max, stddev)
+        for per-CPU, per-interface, and per-device metrics.
 
         Args:
             container_name: Name of the container to filter metrics for
 
         Returns:
-            Dictionary of metrics with gauge values
+            Dictionary of metrics with gauge values, properly prefixed and aggregated
         """
         try:
             response = requests.get(f"{self.cadvisor_url}/metrics", timeout=5)
@@ -242,7 +382,8 @@ class MetricsCollector:
             raw_metrics = self._parse_prometheus_metrics(response.text)
 
             timestamp = time.time()
-            result = {}
+            raw_values: dict[str, float] = {}
+            aggregation_groups: dict[str, list[float]] = defaultdict(list)
 
             for key, metric_data in raw_metrics.items():
                 # Filter by container name if present in labels
@@ -258,12 +399,37 @@ class MetricsCollector:
                 # Convert counter to gauge if needed
                 if self._is_counter_metric(metric_name, "cadvisor"):
                     gauge_value = self.converter.convert(
-                        f"cadvisor_{container_name}_{key}", value, timestamp
+                        f"cAdvisor_{container_name}_{key}", value, timestamp
                     )
-                    if gauge_value is not None:
-                        result[f"{key}_rate"] = gauge_value
+                    if gauge_value is None:
+                        continue
+                    value = gauge_value
+                    metric_key = f"{metric_name}_rate"
                 else:
-                    result[key] = value
+                    metric_key = metric_name
+
+                # Check if this metric should be aggregated
+                should_agg, base_name = self._should_aggregate_metric(
+                    key, self.CADVISOR_AGGREGATION_PATTERNS
+                )
+                
+                if should_agg and base_name:
+                    aggregation_groups[base_name].append(value)
+                else:
+                    raw_values[metric_key] = value
+
+            # Build result with proper prefix and aggregation
+            result = {}
+            
+            # Add aggregated metrics with stats
+            for base_name, values in aggregation_groups.items():
+                stats = calculate_stats(values)
+                for stat_name, stat_value in stats.items():
+                    result[f"cAdvisor_{base_name}_{stat_name}"] = stat_value
+            
+            # Add non-aggregated metrics with prefix
+            for key, value in raw_values.items():
+                result[f"cAdvisor_{key}"] = value
 
             return result
 
@@ -274,9 +440,11 @@ class MetricsCollector:
     def collect_node_exporter_metrics(self) -> dict[str, Any]:
         """
         Collect metrics from Node Exporter.
+        Metrics are prefixed with "nodeExporter_" and aggregated (avg, min, max, stddev)
+        for per-CPU, per-interface, per-device, and per-sensor metrics.
 
         Returns:
-            Dictionary of metrics with gauge values
+            Dictionary of metrics with gauge values, properly prefixed and aggregated
         """
         try:
             response = requests.get(f"{self.node_exporter_url}/metrics", timeout=5)
@@ -284,7 +452,8 @@ class MetricsCollector:
             raw_metrics = self._parse_prometheus_metrics(response.text)
 
             timestamp = time.time()
-            result = {}
+            raw_values: dict[str, float] = {}
+            aggregation_groups: dict[str, list[float]] = defaultdict(list)
 
             for key, metric_data in raw_metrics.items():
                 metric_name = metric_data["name"]
@@ -293,12 +462,37 @@ class MetricsCollector:
                 # Convert counter to gauge if needed
                 if self._is_counter_metric(metric_name, "node_exporter"):
                     gauge_value = self.converter.convert(
-                        f"node_exporter_{key}", value, timestamp
+                        f"nodeExporter_{key}", value, timestamp
                     )
-                    if gauge_value is not None:
-                        result[f"{key}_rate"] = gauge_value
+                    if gauge_value is None:
+                        continue
+                    value = gauge_value
+                    metric_key = f"{metric_name}_rate"
                 else:
-                    result[key] = value
+                    metric_key = metric_name
+
+                # Check if this metric should be aggregated
+                should_agg, base_name = self._should_aggregate_metric(
+                    key, self.NODE_EXPORTER_AGGREGATION_PATTERNS
+                )
+                
+                if should_agg and base_name:
+                    aggregation_groups[base_name].append(value)
+                else:
+                    raw_values[metric_key] = value
+
+            # Build result with proper prefix and aggregation
+            result = {}
+            
+            # Add aggregated metrics with stats
+            for base_name, values in aggregation_groups.items():
+                stats = calculate_stats(values)
+                for stat_name, stat_value in stats.items():
+                    result[f"nodeExporter_{base_name}_{stat_name}"] = stat_value
+            
+            # Add non-aggregated metrics with prefix
+            for key, value in raw_values.items():
+                result[f"nodeExporter_{key}"] = value
 
             return result
 
@@ -472,6 +666,39 @@ def parse_e2_nodes(nodes_str: str) -> dict[str, dict[str, str]]:
     return nodes
 
 
+def get_ran_prefix(node_name: str) -> str:
+    """
+    Determine the appropriate RAN prefix based on node name.
+    
+    Args:
+        node_name: The E2 node name (e.g., "cu0", "du1")
+        
+    Returns:
+        "CU_" for CU nodes, "DU_" for DU nodes
+    """
+    if node_name.lower().startswith("cu"):
+        return "CU_"
+    elif node_name.lower().startswith("du"):
+        return "DU_"
+    else:
+        # Default to node name prefix for unknown types
+        return f"{node_name.upper()}_"
+
+
+def prefix_dict_keys(d: dict[str, Any], prefix: str) -> dict[str, Any]:
+    """
+    Add a prefix to all dictionary keys.
+    
+    Args:
+        d: Dictionary to prefix
+        prefix: Prefix to add to each key
+        
+    Returns:
+        New dictionary with prefixed keys
+    """
+    return {f"{prefix}{k}": v for k, v in d.items()}
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Collect metrics from O-RAN E2 nodes"
@@ -580,21 +807,26 @@ def main():
             for node_name, config in e2_nodes.items():
                 container_name = config["container"]
 
-                # Collect cAdvisor metrics for this container
+                # Collect cAdvisor metrics for this container (already prefixed with cAdvisor_)
                 cadvisor_metrics = collector.collect_cadvisor_metrics(container_name)
 
-                # Get srsRAN metrics for this node
+                # Get srsRAN metrics for this node and prefix with CU_ or DU_
                 srsran_metrics = collector.get_srsran_metrics(node_name)
+                ran_prefix = get_ran_prefix(node_name)
+                prefixed_srsran_metrics = prefix_dict_keys(srsran_metrics, ran_prefix)
 
-                # Combine all metrics
-                combined_metrics = {
-                    "cadvisor": cadvisor_metrics,
-                    "srsran": srsran_metrics,
-                }
+                # Combine all metrics (flatten structure, no nested dicts)
+                combined_metrics = {}
+                
+                # Add cAdvisor metrics (already prefixed)
+                combined_metrics.update(cadvisor_metrics)
+                
+                # Add RAN metrics (prefixed with CU_ or DU_)
+                combined_metrics.update(prefixed_srsran_metrics)
 
-                # Include node exporter metrics (same for all nodes as they're host-level)
+                # Add node exporter metrics (already prefixed with nodeExporter_)
                 if node_exporter_metrics:
-                    combined_metrics["node_exporter"] = node_exporter_metrics
+                    combined_metrics.update(node_exporter_metrics)
 
                 # Write sample
                 writer.write_sample(node_name, timestamp, combined_metrics)

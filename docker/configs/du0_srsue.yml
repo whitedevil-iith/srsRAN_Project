@@ -24,9 +24,11 @@ f1u:
 # =============================================================================
 # Radio Unit (RU) SDR Configuration - ZMQ Mode for UE Connection
 # =============================================================================
+# DU binds tx_port to its own IP, connects rx_port to UE's tx_port
+# UE0 (175.53.1.30:2001) <-> DU0 tx_port0/rx_port0
+# UE1 (175.53.1.31:2001) <-> DU0 tx_port1/rx_port1
 ru_sdr:
   device_driver: zmq
-  # tx_port sends to UE rx_port, rx_port receives from UE tx_port
   device_args: tx_port0=tcp://175.53.1.10:2000,rx_port0=tcp://175.53.1.30:2001,tx_port1=tcp://175.53.1.10:2100,rx_port1=tcp://175.53.1.31:2001
   srate: 23.04
   tx_gain: 50
