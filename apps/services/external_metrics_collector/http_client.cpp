@@ -124,14 +124,32 @@ std::string http_client::get(const std::string& url)
         break;
 
       std::string chunk_size_str = body.substr(pos, newline_pos - pos);
-      size_t      chunk_size     = std::stoul(chunk_size_str, nullptr, 16);
+      
+      // Validate hex string and parse chunk size with error handling
+      try {
+        // Check if string is empty or has invalid characters
+        if (chunk_size_str.empty()) {
+          break;
+        }
+        
+        size_t chunk_size = std::stoul(chunk_size_str, nullptr, 16);
 
-      if (chunk_size == 0)
+        if (chunk_size == 0)
+          break;
+
+        pos = newline_pos + 2;
+        
+        // Ensure we don't read beyond buffer
+        if (pos + chunk_size > body.length()) {
+          break;
+        }
+        
+        decoded_body += body.substr(pos, chunk_size);
+        pos += chunk_size + 2; // Skip chunk data and trailing \r\n
+      } catch (const std::exception&) {
+        // Invalid chunk size format, return what we have
         break;
-
-      pos = newline_pos + 2;
-      decoded_body += body.substr(pos, chunk_size);
-      pos += chunk_size + 2; // Skip chunk data and trailing \r\n
+      }
     }
 
     return decoded_body;

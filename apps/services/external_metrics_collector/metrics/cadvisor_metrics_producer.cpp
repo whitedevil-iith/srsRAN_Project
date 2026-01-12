@@ -67,9 +67,10 @@ cadvisor_metrics cadvisor_metrics_producer_impl::parse_cadvisor_response(const s
       if (latest_stats.contains("cpu") && latest_stats["cpu"].contains("usage")) {
         auto& cpu_usage = latest_stats["cpu"]["usage"];
         if (cpu_usage.contains("total") && latest_stats["cpu"].contains("usage_nano_cores")) {
-          // Convert nanocores to percentage (assuming 100% = 1 core = 1e9 nanocores)
+          // Convert nanocores to percentage (1 core = 1e9 nanocores = 100%)
+          // Divide by 1e9 to get number of cores used, then multiply by 100 for percentage
           container_metrics.cpu_usage_percentage =
-              static_cast<double>(latest_stats["cpu"]["usage_nano_cores"].get<uint64_t>()) / 1e7;
+              (static_cast<double>(latest_stats["cpu"]["usage_nano_cores"].get<uint64_t>()) / 1e9) * 100.0;
         }
       }
 
