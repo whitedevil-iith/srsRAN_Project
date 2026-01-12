@@ -27,6 +27,7 @@
 #include "apps/services/app_execution_metrics/executor_metrics_config_yaml_writer.h"
 #include "apps/services/app_resource_usage/app_resource_usage_config_yaml_writer.h"
 #include "apps/services/buffer_pool/buffer_pool_config_yaml_writer.h"
+#include "apps/services/external_metrics_collector/external_metrics_config_yaml_writer.h"
 #include "apps/services/metrics/metrics_config_yaml_writer.h"
 #include "du_appconfig.h"
 
@@ -90,6 +91,7 @@ void srsran::fill_du_appconfig_in_yaml_schema(YAML::Node& node, const du_appconf
   app_services::fill_app_resource_usage_config_in_yaml_schema(node, config.metrics_cfg.rusage_config);
   app_services::fill_metrics_appconfig_in_yaml_schema(node, config.metrics_cfg.metrics_service_cfg);
   app_services::fill_app_exec_metrics_config_in_yaml_schema(node, config.metrics_cfg.executors_metrics_cfg);
+  fill_external_metrics_config_in_yaml_schema(node, config.metrics_cfg.external_metrics_cfg);
   node["metrics"]["autostart_stdout_metrics"] = config.metrics_cfg.autostart_stdout_metrics;
   app_services::fill_buffer_pool_config_in_yaml_schema(node, config.buffer_pool_config);
   fill_logger_appconfig_in_yaml_schema(node, config.log_cfg);
