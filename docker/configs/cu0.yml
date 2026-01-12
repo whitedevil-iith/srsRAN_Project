@@ -1,12 +1,8 @@
 # =============================================================================
-# Example srsRAN CU Configuration with External Metrics Collection
+# srsRAN CU0 Configuration for Docker Monitoring Deployment (ZMQ Mode)
 # =============================================================================
-#
-# This is an example configuration file for CU0 (Central Unit).
-# It demonstrates all available services and enables external metrics collection
-# from cAdvisor and Node Exporter.
-#
-# Use this as a reference to create your own configuration file.
+# Configuration file for CU0 (Central Unit) used by docker-compose.monitoring.yml
+# CU0 connects to DU0 and provides 2 UE support per DU
 #
 
 # =============================================================================
@@ -15,32 +11,36 @@
 cu_cp:
   # AMF (Access and Mobility Management Function) Configuration
   amf:
-    # Address of the AMF (5G Core)
-    addr: 175.53.1.2                    # IP address of the AMF
-    bind_addr: 175.53.10.1              # Local bind address for N2 interface
+    addr: 175.53.1.2
+    bind_addr: 175.53.10.1
     supported_tracking_areas:
-      - tac: 7                          # Tracking Area Code
+      - tac: 7
         plmn_list:
-          - plmn: "00101"               # PLMN ID (MCC: 001, MNC: 01)
+          - plmn: "00101"
             tai_slice_support_list:
-              - sst: 1                  # Slice/Service Type
+              - sst: 1
+
+  # F1AP Configuration (CU to DU interface)
+  f1ap:
+    bind_addr: 175.53.10.1
+    procedure_timeout: 10000
 
   # E1AP Configuration (CU-CP to CU-UP interface)
   e1ap:
-    # bind_addr: 175.53.10.1              # Bind address for E1AP
     procedure_timeout: 10000
-  # F1AP Configuration (CU to DU interface)
-  f1ap:
-    bind_addr: 175.53.10.1              # Bind address for F1AP
+
+# =============================================================================
+# CU-UP Configuration (User Plane)
+# =============================================================================
+cu_up:
+  f1u:
+    socket:
+      - bind_addr: 175.53.10.1
 
 # =============================================================================
 # Metrics Configuration
 # =============================================================================
 metrics:
-  # Enable automatic stdout metrics reporting
-  enable_verbose: true
-
-  # Enable JSON format metrics (required for WebSocket/Telegraf)
   enable_json: true
 
   layers:
@@ -54,29 +54,14 @@ metrics:
     app_usage_report_period: 1000
     cu_cp_report_period: 1000
     cu_up_report_period: 1000
-  # # Metrics reporting interval in milliseconds
-  # report_period_ms: 1000
 
 # =============================================================================
 # External Metrics Configuration
 # =============================================================================
-# This section enables collection of metrics from external sources
-# (cAdvisor for container metrics and Node Exporter for host metrics)
-#
 external_metrics:
-  # Enable external metrics collection
   enable: true
-
-  # cAdvisor endpoint for Docker container metrics
-  # This collects CPU, memory, network, and filesystem metrics for containers
-  # Default port for cAdvisor is 8080
   cadvisor_endpoint: "http://175.40.1.7:8080/api/v1.3/docker"
-
-  # Node Exporter endpoint for host system metrics
-  # This collects CPU, memory, disk, network, and other host-level metrics
-  # Default port for Node Exporter is 9100
   node_exporter_endpoint: "http://175.40.1.8:9100/metrics"
-
   metrics:
     enable_log: true
     enable_json: true
@@ -85,53 +70,30 @@ external_metrics:
 # =============================================================================
 # Remote Control Configuration
 # =============================================================================
-# Enables WebSocket interface for remote control and metrics subscription
-#
 remote_control:
-  # Enable remote control interface
   enabled: true
-
-  # Bind address for WebSocket server
   bind_addr: "0.0.0.0"
-
-  # WebSocket server port
   port: 8001
 
 # =============================================================================
 # Logging Configuration
 # =============================================================================
 log:
-  # Log file path
   filename: /tmp/cu.log
-
-  # Log level for all components
-  # Options: none, error, warning, info, debug
   all_level: info
-
-  # Hex dump limit for log messages
   hex_max_size: 32
-
 
 # =============================================================================
 # PCAP Configuration (Packet Capture)
 # =============================================================================
 pcap:
-  # NGAP (N2 interface) packet capture
   ngap_enable: false
   ngap_filename: /tmp/cu_ngap.pcap
-
-  # F1AP (CU-DU interface) packet capture
   f1ap_enable: false
   f1ap_filename: /tmp/cu_f1ap.pcap
-
-  # E1AP (CU-CP to CU-UP interface) packet capture
   e1ap_enable: false
   e1ap_filename: /tmp/cu_e1ap.pcap
-
-  # F1-U (User plane) packet capture
   f1u_enable: false
   f1u_filename: /tmp/cu_f1u.pcap
-
-  # N3 (NGU interface) packet capture
   n3_enable: false
   n3_filename: /tmp/cu_n3.pcap
