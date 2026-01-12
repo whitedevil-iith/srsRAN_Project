@@ -1,7 +1,28 @@
+#
+# Copyright 2021-2025 Software Radio Systems Limited
+#
+# This file is part of srsRAN
+#
+# srsRAN is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of
+# the License, or (at your option) any later version.
+#
+# srsRAN is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# A copy of the GNU Affero General Public License can be found in
+# the LICENSE file in the top-level directory of this distribution
+# and at http://www.gnu.org/licenses/.
+#
+
 # Volumes definition
 volumes:
   grafana-storage:
   influxdb-storage:
+
 # Network definition
 networks:
   oran-intel:
@@ -9,21 +30,25 @@ networks:
     ipam:
       config:
         - subnet: 175.0.0.0/8
+
 services:
+  # =============================================================================
+  # 5G Core Network
+  # =============================================================================
   5gc:
     container_name: open5gs_5gc
     build:
-      context: ../srsRAN_Project/docker/open5gs
+      context: open5gs
       target: open5gs
       args:
         OS_VERSION: "22.04"
         OPEN5GS_VERSION: "v2.7.0"
     env_file:
-      - ./open5gs/open5gs.env
+      - ${OPEN5GS_ENV_FILE:-./open5gs/open5gs.env}
     privileged: true
     ports:
       - "9999:9999/tcp"
-    # Uncomment port to use the 5gc from outside the docker network
+      # Uncomment port to use the 5gc from outside the docker network
       - "38412:38412/sctp"
       - "2152:2152/udp"
     command: 5gc -c open5gs-5gc.yml
@@ -36,16 +61,19 @@ services:
       oran-intel:
         ipv4_address: ${OPEN5GS_IP:-175.53.1.2}
 
+  # =============================================================================
+  # CU Nodes (Central Units)
+  # =============================================================================
   cu0:
     container_name: srscu0
-    image: srsran:main
+    image: srsran/gnb
     build:
-      context: ../srsRAN_Project/
+      context: ..
       dockerfile: docker/Dockerfile
       args:
-        OS_VERSION: "22.04"
-    stdin_open: true # docker run -i
-    tty: true        # docker run -t
+        OS_VERSION: "24.04"
+    stdin_open: true
+    tty: true
     privileged: true
     cap_add:
       - SYS_NICE
@@ -53,15 +81,18 @@ services:
     volumes:
       - /dev/bus/usb/:/dev/bus/usb/
       - /usr/share/uhd/images:/usr/share/uhd/images
-      - ../../setup/config_files/cu_0.yml:/config/cu.conf:ro
-      - ../../setup/config_files/entrypoint_0.sh:/tmp/entrypoint.sh
+      - ${CU0_CONFIG_PATH:-./configs/cu0.yml}:/config/cu.conf:ro
+      - ${CU0_ENTRYPOINT_PATH:-./scripts/entrypoint_cu0.sh}:/tmp/entrypoint.sh:ro
+    environment:
+      - CADVISOR_ENDPOINT=http://cadvisor:8080
+      - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
     networks:
       oran-intel:
         ipv4_address: 175.53.10.1
     depends_on:
       5gc:
         condition: service_healthy
-    command:  bash -c 'chmod +x /tmp/entrypoint.sh && /tmp/entrypoint.sh && srscu -c /config/cu.conf'
+    command: bash -c 'chmod +x /tmp/entrypoint.sh && /tmp/entrypoint.sh && srscu -c /config/cu.conf'
     deploy:
       resources:
         limits:
@@ -70,13 +101,12 @@ services:
         reservations:
           cpus: "2.0"
           memory: 4G
-    
-  
+
   cu1:
     container_name: srscu1
-    image: srsran:main
-    stdin_open: true # docker run -i
-    tty: true        # docker run -t
+    image: srsran/gnb
+    stdin_open: true
+    tty: true
     privileged: true
     cap_add:
       - SYS_NICE
@@ -84,15 +114,20 @@ services:
     volumes:
       - /dev/bus/usb/:/dev/bus/usb/
       - /usr/share/uhd/images:/usr/share/uhd/images
-      - ../../setup/config_files/entrypoint_1.sh:/tmp/entrypoint.sh
-      - ../../setup/config_files/cu_1.yml:/config/cu.conf
+      - ${CU1_CONFIG_PATH:-./configs/cu1.yml}:/config/cu.conf:ro
+      - ${CU1_ENTRYPOINT_PATH:-./scripts/entrypoint_cu1.sh}:/tmp/entrypoint.sh:ro
+    environment:
+      - CADVISOR_ENDPOINT=http://cadvisor:8080
+      - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
     networks:
       oran-intel:
         ipv4_address: 175.53.10.2
     depends_on:
       5gc:
         condition: service_healthy
-    command:  bash -c 'chmod +x /tmp/entrypoint.sh && /tmp/entrypoint.sh && srscu -c /config/cu.conf'
+      cu0:
+        condition: service_started
+    command: bash -c 'chmod +x /tmp/entrypoint.sh && /tmp/entrypoint.sh && srscu -c /config/cu.conf'
     deploy:
       resources:
         limits:
@@ -101,12 +136,15 @@ services:
         reservations:
           cpus: "2.0"
           memory: 4G
-  
+
+  # =============================================================================
+  # DU Nodes (Distributed Units)
+  # =============================================================================
   du0:
     container_name: srsdu0
-    image: srsran:main
-    stdin_open: true # docker run -i
-    tty: true        # docker run -t
+    image: srsran/gnb
+    stdin_open: true
+    tty: true
     privileged: true
     cap_add:
       - SYS_NICE
@@ -114,13 +152,16 @@ services:
     volumes:
       - /dev/bus/usb/:/dev/bus/usb/
       - /usr/share/uhd/images:/usr/share/uhd/images
-      - ../../setup/config_files/du_zmq.conf:/config/du.conf
+      - ${DU0_CONFIG_PATH:-./configs/du0.yml}:/config/du.conf:ro
+    environment:
+      - CADVISOR_ENDPOINT=http://cadvisor:8080
+      - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
     networks:
       oran-intel:
         ipv4_address: 175.53.1.10
-    # depends_on:
-    #   - cu0
-    #   - 5gc
+    depends_on:
+      cu0:
+        condition: service_started
     command: srsdu -c /config/du.conf
     deploy:
       resources:
@@ -133,9 +174,9 @@ services:
 
   du1:
     container_name: srsdu1
-    image: srsran:main
-    stdin_open: true # docker run -i
-    tty: true        # docker run -t
+    image: srsran/gnb
+    stdin_open: true
+    tty: true
     privileged: true
     cap_add:
       - SYS_NICE
@@ -143,13 +184,16 @@ services:
     volumes:
       - /dev/bus/usb/:/dev/bus/usb/
       - /usr/share/uhd/images:/usr/share/uhd/images
-      - ../../setup/config_files/du_zmq_1.conf:/config/du.conf
+      - ${DU1_CONFIG_PATH:-./configs/du1.yml}:/config/du.conf:ro
+    environment:
+      - CADVISOR_ENDPOINT=http://cadvisor:8080
+      - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
     networks:
       oran-intel:
         ipv4_address: 175.53.1.13
-    # depends_on:
-    #   - cu1
-    #   - 5gc
+    depends_on:
+      cu1:
+        condition: service_started
     command: srsdu -c /config/du.conf
     deploy:
       resources:
@@ -159,12 +203,12 @@ services:
         reservations:
           cpus: "4.0"
           memory: 4G
-  
+
   du2:
     container_name: srsdu2
-    image: srsran:main
-    stdin_open: true # docker run -i
-    tty: true        # docker run -t
+    image: srsran/gnb
+    stdin_open: true
+    tty: true
     privileged: true
     cap_add:
       - SYS_NICE
@@ -172,13 +216,16 @@ services:
     volumes:
       - /dev/bus/usb/:/dev/bus/usb/
       - /usr/share/uhd/images:/usr/share/uhd/images
-      - ../../setup/config_files/du_zmq_2.conf:/config/du.conf
+      - ${DU2_CONFIG_PATH:-./configs/du2.yml}:/config/du.conf:ro
+    environment:
+      - CADVISOR_ENDPOINT=http://cadvisor:8080
+      - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
     networks:
       oran-intel:
         ipv4_address: 175.53.1.14
-    # depends_on:
-    #   - cu2
-    #   - 5gc
+    depends_on:
+      cu1:
+        condition: service_started
     command: srsdu -c /config/du.conf
     deploy:
       resources:
@@ -189,61 +236,208 @@ services:
           cpus: "4.0"
           memory: 4G
 
+  # =============================================================================
+  # Telegraf Metrics Collectors for E2 Nodes
+  # Each CU/DU node has its own Telegraf instance to collect all possible metrics
+  # =============================================================================
 
-  metrics-server:
-    container_name: metrics_server
-    image: srsran/metrics_server
+  # Telegraf for CU0
+  telegraf-cu0:
+    container_name: telegraf_cu0
+    image: srsran/telegraf
     build:
-      context: .
-      dockerfile: ./telegraf/Dockerfile
-
-    environment:
-      - PORT=${METRICS_SERVER_PORT}
-      - BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
-      - TESTBED=default
-      - URL=http://${DOCKER_INFLUXDB_INIT_HOST}:${DOCKER_INFLUXDB_INIT_PORT}
-      - ORG=${DOCKER_INFLUXDB_INIT_ORG}
-      - TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
-    ports:
-      - 55555:${METRICS_SERVER_PORT}/udp
-    networks:
-      oran-intel:
-        ipv4_address: 175.40.1.4 
-
-  influxdb:
-    container_name: influxdb
-    image: influxdb:${DOCKER_INFLUXDB_VERSION}
-    volumes:
-      - influxdb-storage:/var/lib/influxdb2:rw
+      context: telegraf
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      cu0:
+        condition: service_started
+      cadvisor:
+        condition: service_started
+      node-exporter:
+        condition: service_started
     env_file:
       - .env
+    environment:
+      - WS_URL=175.53.10.1:8001
+      - INFLUXDB3_TESTBED=cu0
+      - TELEGRAF_CONTAINER_NAME=srscu0
+      - CADVISOR_URL=http://175.40.1.7:8080
+      - NODE_EXPORTER_URL=http://175.40.1.8:9100
+    volumes:
+      - ${TELEGRAF_CU0_CONFIG:-./telegraf/telegraf_cu_external.conf}:/etc/srs/telegraf.conf:ro
+    networks:
+      oran-intel:
+        ipv4_address: 175.40.2.1
+
+  # Telegraf for CU1
+  telegraf-cu1:
+    container_name: telegraf_cu1
+    image: srsran/telegraf
+    build:
+      context: telegraf
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      cu1:
+        condition: service_started
+      cadvisor:
+        condition: service_started
+      node-exporter:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      - WS_URL=175.53.10.2:8001
+      - INFLUXDB3_TESTBED=cu1
+      - TELEGRAF_CONTAINER_NAME=srscu1
+      - CADVISOR_URL=http://175.40.1.7:8080
+      - NODE_EXPORTER_URL=http://175.40.1.8:9100
+    volumes:
+      - ${TELEGRAF_CU1_CONFIG:-./telegraf/telegraf_cu_external.conf}:/etc/srs/telegraf.conf:ro
+    networks:
+      oran-intel:
+        ipv4_address: 175.40.2.2
+
+  # Telegraf for DU0
+  telegraf-du0:
+    container_name: telegraf_du0
+    image: srsran/telegraf
+    build:
+      context: telegraf
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      du0:
+        condition: service_started
+      cadvisor:
+        condition: service_started
+      node-exporter:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      - WS_URL=175.53.1.10:8001
+      - INFLUXDB3_TESTBED=du0
+      - TELEGRAF_CONTAINER_NAME=srsdu0
+      - CADVISOR_URL=http://175.40.1.7:8080
+      - NODE_EXPORTER_URL=http://175.40.1.8:9100
+    volumes:
+      - ${TELEGRAF_DU0_CONFIG:-./telegraf/telegraf_du_external.conf}:/etc/srs/telegraf.conf:ro
+    networks:
+      oran-intel:
+        ipv4_address: 175.40.2.3
+
+  # Telegraf for DU1
+  telegraf-du1:
+    container_name: telegraf_du1
+    image: srsran/telegraf
+    build:
+      context: telegraf
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      du1:
+        condition: service_started
+      cadvisor:
+        condition: service_started
+      node-exporter:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      - WS_URL=175.53.1.13:8001
+      - INFLUXDB3_TESTBED=du1
+      - TELEGRAF_CONTAINER_NAME=srsdu1
+      - CADVISOR_URL=http://175.40.1.7:8080
+      - NODE_EXPORTER_URL=http://175.40.1.8:9100
+    volumes:
+      - ${TELEGRAF_DU1_CONFIG:-./telegraf/telegraf_du_external.conf}:/etc/srs/telegraf.conf:ro
+    networks:
+      oran-intel:
+        ipv4_address: 175.40.2.4
+
+  # Telegraf for DU2
+  telegraf-du2:
+    container_name: telegraf_du2
+    image: srsran/telegraf
+    build:
+      context: telegraf
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      du2:
+        condition: service_started
+      cadvisor:
+        condition: service_started
+      node-exporter:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      - WS_URL=175.53.1.14:8001
+      - INFLUXDB3_TESTBED=du2
+      - TELEGRAF_CONTAINER_NAME=srsdu2
+      - CADVISOR_URL=http://175.40.1.7:8080
+      - NODE_EXPORTER_URL=http://175.40.1.8:9100
+    volumes:
+      - ${TELEGRAF_DU2_CONFIG:-./telegraf/telegraf_du_external.conf}:/etc/srs/telegraf.conf:ro
+    networks:
+      oran-intel:
+        ipv4_address: 175.40.2.5
+
+  # =============================================================================
+  # Monitoring Infrastructure
+  # =============================================================================
+
+  # InfluxDB - Time Series Database
+  influxdb:
+    container_name: influxdb
+    image: influxdb:${INFLUXDB3_VERSION:-3.1.0-core}
+    user: "0:0"
+    volumes:
+      - influxdb-storage:/var/lib/influxdb3:rw
+    env_file:
+      - .env
+    environment:
+      - LOG_FILTER=${INFLUXDB3_LOG_LEVEL:-error}
+    command: >
+      --object-store=memory --data-dir=/var/lib/influxdb3 --plugin-dir=/var/lib/influxdb3-plugins --node-id="${INFLUXDB_NODE_ID:-node0}" --http-bind="${INFLUXDB3_HTTP_BIND_ADDR:-0.0.0.0:8081}" --without-auth
     restart: on-failure:10
-    # Uncomment port section to access InfluxDB from outside the docker network
+    healthcheck:
+      test: >
+        curl -f ${INFLUXDB3_HOST_URL:-http://127.0.0.1:8081}/health
+      timeout: 5s
+      interval: 1s
     ports:
-      - 8086:${DOCKER_INFLUXDB_INIT_PORT}
+      - "8086:${INFLUXDB3_PORT:-8081}"
     networks:
       oran-intel:
         ipv4_address: 175.40.1.5
 
+  # Grafana - Visualization Dashboard
   grafana:
     container_name: grafana
     image: srsran/grafana
     build:
-      context: ./
-      dockerfile: ./grafana/Dockerfile
+      context: grafana
+      args:
+        GF_VERSION: ${GF_VERSION:-12.0.2}
+        LOGO_URL: ${GF_LOGO_URL:-https://raw.githubusercontent.com/srsran/srsRAN_Project_docs/main/docs/source/.imgs/logo.png}
     volumes:
       - grafana-storage:/var/lib/grafana:rw
     env_file:
       - .env
     depends_on:
-      - influxdb
-      - metrics-server
+      influxdb:
+        condition: service_healthy
     ports:
-      - 3300:${GRAFANA_PORT}
+      - "3300:${GF_PORT:-3000}"
     networks:
       oran-intel:
         ipv4_address: 175.40.1.6
 
+  # cAdvisor - Container Metrics
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
@@ -263,7 +457,7 @@ services:
       oran-intel:
         ipv4_address: 175.40.1.7
 
-  # Node Exporter - Host metrics
+  # Node Exporter - Host System Metrics
   node-exporter:
     image: quay.io/prometheus/node-exporter:latest
     container_name: node_exporter
@@ -283,14 +477,3 @@ services:
       oran-intel:
         ipv4_address: 175.40.1.8
     pid: host
-  
-  
-
-  
-  
-
-
-
-
-
-  
