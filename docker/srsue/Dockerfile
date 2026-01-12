@@ -72,6 +72,12 @@ RUN apt-get update && apt-get install -y \
     libsctp1 \
     libzmq5 \
     libpcsclite1 \
+    libfftw3-dev \
+    libmbedtls-dev \
+    libboost-program-options-dev \
+    libconfig++-dev \
+    libsctp-dev \
+    libzmq3-dev \
     iperf3 \
     iproute2 \
     iputils-ping \
@@ -79,8 +85,15 @@ RUN apt-get update && apt-get install -y \
     stress-ng \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy srsUE binary
+# Copy srsUE binary and libraries
 COPY --from=builder /src/srsRAN_4G/build/srsue/src/srsue /usr/local/bin/srsue
+COPY --from=builder /src/srsRAN_4G/build/lib/src/phy/rf/libsrsran_rf.so* /usr/local/lib/
+COPY --from=builder /src/srsRAN_4G/build/lib/src/phy/rf/libsrsran_rf_zmq.so* /usr/local/lib/
+COPY --from=builder /src/srsRAN_4G/build/lib/src/common/libsrsran_common.so* /usr/local/lib/
+COPY --from=builder /src/srsRAN_4G/build/lib/src/phy/libsrsran_phy.so* /usr/local/lib/
+
+# Update library path
+RUN ldconfig
 
 # Create config directory
 RUN mkdir -p /config

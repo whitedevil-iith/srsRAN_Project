@@ -498,6 +498,7 @@ services:
     working_dir: /scripts
     command: >
       bash -c "
+        apt-get update && apt-get install -y iperf3 &&
         pip install requests websocket-client &&
         python generate_traffic.py
           --pattern '${TRAFFIC_PATTERN}'
@@ -530,22 +531,17 @@ services:
     volumes:
       - ../scripts/data_collection:/scripts:ro
       - ue-storage:/data
+      - ./collected_data:/data/metrics
     environment:
       - COLLECTION_INTERVAL=1
       - CADVISOR_URL=http://175.40.1.7:8080
       - NODE_EXPORTER_URL=http://175.40.1.8:9100
       - E2_NODES=cu0:srscu0:175.53.10.1:8001,cu1:srscu1:175.53.10.2:8001,du0:srsdu0:175.53.1.10:8001,du1:srsdu1:175.53.1.13:8001,du2:srsdu2:175.53.1.14:8001
     working_dir: /scripts
-    command: >
-      bash -c "
-        pip install requests websocket-client &&
-        python collect_metrics.py
-          --interval ${COLLECTION_INTERVAL}
-          --output-dir /data/metrics
-          --cadvisor-url '${CADVISOR_URL}'
-          --node-exporter-url '${NODE_EXPORTER_URL}'
-          --e2-nodes '${E2_NODES}'
-      "
+    command: 
+      - bash
+      - -c
+      - pip install requests websocket-client && python collect_metrics.py --interval 1 --output-dir /data/metrics --cadvisor-url http://175.40.1.7:8080 --node-exporter-url http://175.40.1.8:9100 --e2-nodes cu0:srscu0:175.53.10.1:8001,cu1:srscu1:175.53.10.2:8001,du0:srsdu0:175.53.1.10:8001,du1:srsdu1:175.53.1.13:8001,du2:srsdu2:175.53.1.14:8001
     networks:
       oran-intel:
         ipv4_address: 175.53.1.102
@@ -569,6 +565,7 @@ services:
     volumes:
       - ../scripts/data_collection:/scripts:ro
       - ue-storage:/data
+      - ./stress_data:/data/stress
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - STRESS_SCENARIO=traffic_aware
@@ -584,23 +581,11 @@ services:
       # Traffic pattern for slope detection
       - TRAFFIC_PATTERN=[11.0, 8.1, 5.6, 3.6, 2.7, 1.9, 3.0, 5.0, 7.1, 11.1, 11.2, 11.9, 12.3, 13.0, 13.1, 12.9, 12.7, 12.4, 12.2, 12.0, 13.0, 14.0, 15.0, 14.0]
     working_dir: /scripts
-    command: >
-      bash -c "
-        apt-get update && apt-get install -y docker.io &&
-        pip install requests &&
-        python generate_stress.py
-          --scenario '${STRESS_SCENARIO}'
-          --duration '${STRESS_DURATION}'
-          --containers '${CONTAINERS}'
-          --output-dir /data/stress
-          --traffic-pattern '${TRAFFIC_PATTERN}'
-          --stress-prob-cpu ${STRESS_PROB_CPU}
-          --stress-prob-memory ${STRESS_PROB_MEMORY}
-          --stress-prob-io ${STRESS_PROB_IO}
-          --stress-prob-network-loss ${STRESS_PROB_NETWORK_LOSS}
-          --stress-prob-network-latency ${STRESS_PROB_NETWORK_LATENCY}
-          --stress-prob-disk ${STRESS_PROB_DISK}
-      "
+    command: 
+      - bash
+      - -c
+      - |
+        apt-get update && apt-get install -y docker.io && pip install requests && python generate_stress.py --scenario traffic_aware --duration 86400 --containers srscu0,srscu1,srsdu0,srsdu1,srsdu2 --output-dir /data/stress --traffic-pattern '[11.0, 8.1, 5.6, 3.6, 2.7, 1.9, 3.0, 5.0, 7.1, 11.1, 11.2, 11.9, 12.3, 13.0, 13.1, 12.9, 12.7, 12.4, 12.2, 12.0, 13.0, 14.0, 15.0, 14.0]' --stress-prob-cpu 0.3 --stress-prob-memory 0.2 --stress-prob-io 0.15 --stress-prob-network-loss 0.1 --stress-prob-network-latency 0.15 --stress-prob-disk 0.1
     networks:
       oran-intel:
         ipv4_address: 175.53.1.103
