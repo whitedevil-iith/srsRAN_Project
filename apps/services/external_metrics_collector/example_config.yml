@@ -1,0 +1,56 @@
+# Example srsRAN gNB Configuration with External Metrics Collection
+# This configuration enables collection of metrics from cAdvisor and Node Exporter
+
+# Basic gNB configuration
+gnb_id: 411
+gnb_id_bit_length: 22
+ran_node_name: "srsgnb01"
+
+# Metrics Configuration
+metrics:
+  # Enable automatic stdout metrics reporting
+  autostart_stdout_metrics: true
+  
+  # Standard metrics configuration
+  metrics_service:
+    addr: "0.0.0.0"
+    port: 55555
+    enable_metrics_subscription: true
+  
+  # Resource usage metrics (built-in)
+  rusage:
+    enable_app_usage: true
+    enable_log_metrics: true
+    enable_json_metrics: true
+
+# External Metrics Configuration
+external_metrics:
+  # Enable external metrics collection
+  enable: true
+  
+  # cAdvisor endpoint for Docker container metrics
+  # Default: http://localhost:8080/api/v1.3/docker
+  cadvisor_endpoint: "http://localhost:8080/api/v1.3/docker"
+  
+  # Node Exporter endpoint for host system metrics  
+  # Default: http://localhost:9100/metrics
+  node_exporter_endpoint: "http://localhost:9100/metrics"
+  
+  # Enable human-readable log output
+  enable_log_metrics: true
+  
+  # Enable JSON output (forwarded to WebSocket subscribers)
+  enable_json_metrics: true
+
+# Remote Control Configuration (for WebSocket metrics subscription)
+remote_control:
+  enabled: true
+  bind_address: "0.0.0.0"
+  port: 55555
+  enable_metrics_subscription: true
+
+# Logging Configuration
+log:
+  filename: "/tmp/gnb.log"
+  all_level: "info"
+  hex_max_size: 0
