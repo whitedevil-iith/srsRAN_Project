@@ -26,7 +26,7 @@ f1u:
 # =============================================================================
 ru_sdr:
   device_driver: zmq
-  device_args: tx_port0=tcp://175.53.1.13:2000,rx_port0=tcp://175.53.1.21:2001,tx_port1=tcp://175.53.1.13:2100,rx_port1=tcp://175.53.1.21:2101
+  device_args: tx_port0=tcp://175.53.1.11:2000,rx_port0=tcp://175.53.1.11:2001,tx_port1=tcp://175.53.1.11:2100,rx_port1=tcp://175.53.1.11:2101
   srate: 23.04
   tx_gain: 50
   rx_gain: 40

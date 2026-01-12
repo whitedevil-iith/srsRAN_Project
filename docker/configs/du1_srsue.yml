@@ -1,8 +1,8 @@
 # =============================================================================
-# srsRAN DU0 Configuration for Docker Monitoring Deployment (ZMQ Mode)
+# srsRAN DU1 Configuration for srsUE Mode (ZMQ)
 # =============================================================================
-# Configuration file for DU0 (Distributed Unit) used by docker-compose.monitoring.yml
-# DU0 connects to CU0 and supports 2 UEs in ZMQ mode
+# Configuration file for DU1 (Distributed Unit) used with srsRAN_4G UEs
+# DU1 connects to CU0 and supports real UEs via ZMQ interface
 #
 
 # =============================================================================
@@ -10,7 +10,7 @@
 # =============================================================================
 f1ap:
   cu_cp_addr: 175.53.10.1
-  bind_addr: 175.53.1.10
+  bind_addr: 175.53.1.13
 
 # =============================================================================
 # F1-U Configuration (User plane to CU)
@@ -19,14 +19,15 @@ f1u:
   bind_port: 2153
   peer_port: 2153
   socket:
-    - bind_addr: 175.53.1.10
+    - bind_addr: 175.53.1.13
 
 # =============================================================================
-# Radio Unit (RU) SDR Configuration - ZMQ Mode
+# Radio Unit (RU) SDR Configuration - ZMQ Mode for UE Connection
 # =============================================================================
 ru_sdr:
   device_driver: zmq
-  device_args: tx_port0=tcp://175.53.1.10:2000,rx_port0=tcp://175.53.1.10:2001,tx_port1=tcp://175.53.1.10:2100,rx_port1=tcp://175.53.1.10:2101
+  # tx_port sends to UE rx_port, rx_port receives from UE tx_port
+  device_args: tx_port0=tcp://175.53.1.13:2000,rx_port0=tcp://175.53.1.32:2001,tx_port1=tcp://175.53.1.13:2100,rx_port1=tcp://175.53.1.33:2001
   srate: 23.04
   tx_gain: 50
   rx_gain: 40
@@ -41,20 +42,7 @@ cell_cfg:
   common_scs: 15
   plmn: "00101"
   tac: 7
-  pci: 1
-
-# =============================================================================
-# Test Mode Configuration (for 2 UEs)
-# =============================================================================
-test_mode:
-  test_ue:
-    rnti: 0x44
-    nof_ues: 2
-    pdsch_active: true
-    pusch_active: true
-    cqi: 15
-    ri: 1
-    pmi: 0
+  pci: 2
 
 # =============================================================================
 # Metrics Configuration

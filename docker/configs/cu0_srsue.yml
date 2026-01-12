@@ -1,79 +1,64 @@
 # =============================================================================
-# srsRAN DU0 Configuration for Docker Monitoring Deployment (ZMQ Mode)
+# srsRAN CU0 Configuration for srsUE Mode (ZMQ)
 # =============================================================================
-# Configuration file for DU0 (Distributed Unit) used by docker-compose.monitoring.yml
-# DU0 connects to CU0 and supports 2 UEs in ZMQ mode
+# Configuration file for CU0 (Central Unit) used with srsRAN_4G UEs
+# CU0 connects to multiple DUs and provides connectivity to 5GC
 #
 
 # =============================================================================
-# F1AP Configuration (DU to CU interface)
+# CU-CP Configuration (Control Plane)
 # =============================================================================
-f1ap:
-  cu_cp_addr: 175.53.10.1
-  bind_addr: 175.53.1.10
+cu_cp:
+  # AMF (Access and Mobility Management Function) Configuration
+  amf:
+    addr: 175.53.1.2
+    bind_addr: 175.53.10.1
+    supported_tracking_areas:
+      - tac: 7
+        plmn_list:
+          - plmn: "00101"
+            tai_slice_support_list:
+              - sst: 1
+
+  # F1AP Configuration (CU to DU interface)
+  f1ap:
+    bind_addr: 175.53.10.1
+    procedure_timeout: 10000
+
+  # E1AP Configuration (CU-CP to CU-UP interface)
+  e1ap:
+    procedure_timeout: 10000
 
 # =============================================================================
-# F1-U Configuration (User plane to CU)
+# CU-UP Configuration (User Plane)
 # =============================================================================
-f1u:
-  bind_port: 2153
-  peer_port: 2153
-  socket:
-    - bind_addr: 175.53.1.10
-
-# =============================================================================
-# Radio Unit (RU) SDR Configuration - ZMQ Mode
-# =============================================================================
-ru_sdr:
-  device_driver: zmq
-  device_args: tx_port0=tcp://175.53.1.10:2000,rx_port0=tcp://175.53.1.10:2001,tx_port1=tcp://175.53.1.10:2100,rx_port1=tcp://175.53.1.10:2101
-  srate: 23.04
-  tx_gain: 50
-  rx_gain: 40
-
-# =============================================================================
-# Cell Configuration
-# =============================================================================
-cell_cfg:
-  dl_arfcn: 368500
-  band: 3
-  channel_bandwidth_MHz: 20
-  common_scs: 15
-  plmn: "00101"
-  tac: 7
-  pci: 1
-
-# =============================================================================
-# Test Mode Configuration (for 2 UEs)
-# =============================================================================
-test_mode:
-  test_ue:
-    rnti: 0x44
-    nof_ues: 2
-    pdsch_active: true
-    pusch_active: true
-    cqi: 15
-    ri: 1
-    pmi: 0
+cu_up:
+  ngu:
+    socket:
+      - bind_addr: 175.53.10.1
+  f1u:
+    bind_port: 2153
+    peer_port: 2153
+    socket:
+      - bind_addr: 175.53.10.1
 
 # =============================================================================
 # Metrics Configuration
 # =============================================================================
 metrics:
-  autostart_stdout_metrics: true
   enable_json: true
 
   layers:
     enable_app_usage: true
-    enable_sched: true
-    enable_rlc: true
-    enable_mac: true
-    enable_du_low: true
-    enable_ru: true
+    enable_ngap: true
+    enable_rrc: true
+    enable_e1ap: true
+    enable_pdcp: true
 
   periodicity:
     app_usage_report_period: 1000
-    du_report_period: 1000
+    cu_cp_report_period: 1000
+    cu_up_report_period: 1000
 
 # =============================================================================
 # External Metrics Configuration
@@ -99,19 +84,21 @@ remote_control:
 # Logging Configuration
 # =============================================================================
 log:
-  filename: /tmp/du.log
+  filename: /tmp/cu.log
   all_level: info
-  phy_level: warning
-  mac_level: info
   hex_max_size: 32
 
 # =============================================================================
 # PCAP Configuration (Packet Capture)
 # =============================================================================
 pcap:
-  mac_enable: false
-  mac_filename: /tmp/du_mac.pcap
+  ngap_enable: false
+  ngap_filename: /tmp/cu_ngap.pcap
   f1ap_enable: false
-  f1ap_filename: /tmp/du_f1ap.pcap
+  f1ap_filename: /tmp/cu_f1ap.pcap
+  e1ap_enable: false
+  e1ap_filename: /tmp/cu_e1ap.pcap
   f1u_enable: false
-  f1u_filename: /tmp/du_f1u.pcap
+  f1u_filename: /tmp/cu_f1u.pcap
+  n3_enable: false
+  n3_filename: /tmp/cu_n3.pcap
