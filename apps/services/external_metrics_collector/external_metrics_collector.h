@@ -24,7 +24,9 @@
 
 #include "apps/helpers/metrics/metrics_config.h"
 #include "apps/services/external_metrics_collector/external_metrics_config.h"
+#include "apps/services/metrics/metrics_config.h"
 #include "apps/services/metrics/metrics_notifier.h"
+#include "srsran/srslog/srslog.h"
 #include <memory>
 #include <vector>
 
@@ -34,7 +36,7 @@ namespace app_services {
 /// External metrics collector service.
 struct external_metrics_collector_service {
   /// Metrics configuration for cAdvisor and Node Exporter.
-  std::vector<metrics_config> metrics;
+  std::vector<app_services::metrics_config> metrics;
 };
 
 /// Builds the external metrics collector service.

@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include "CLI/CLI11.hpp"
 #include "apps/services/external_metrics_collector/external_metrics_config.h"
 
 namespace srsran {

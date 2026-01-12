@@ -36,7 +36,7 @@ struct external_metrics_config {
   /// Node Exporter endpoint URL (e.g., "http://localhost:9100/metrics").
   std::string node_exporter_endpoint = "http://localhost:9100/metrics";
   /// Metrics consumers configuration.
-  app_helpers::metrics_consumers_config metrics_consumers_cfg;
+  app_helpers::metrics_config metrics_consumers_cfg;
 };
 
 } // namespace srsran

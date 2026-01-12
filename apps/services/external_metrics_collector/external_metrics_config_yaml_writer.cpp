@@ -34,7 +34,7 @@ void srsran::fill_external_metrics_config_in_yaml_schema(YAML::Node& node, const
   external_metrics_node["node_exporter_endpoint"] = config.node_exporter_endpoint;
 
   // Add metrics consumers configuration
-  app_helpers::fill_metrics_consumers_config_in_yaml_schema(external_metrics_node, config.metrics_consumers_cfg);
+  app_helpers::fill_metrics_appconfig_in_yaml_schema(external_metrics_node, config.metrics_consumers_cfg);
 
   node["external_metrics"] = external_metrics_node;
 }

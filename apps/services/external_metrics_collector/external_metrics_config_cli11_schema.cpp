@@ -49,6 +49,6 @@ void srsran::configure_cli11_with_external_metrics_config_schema(CLI::App&      
       ->default_val(config.node_exporter_endpoint);
 
   // Add metrics consumers configuration
-  app_helpers::configure_cli11_with_metrics_consumers_config_schema(*external_metrics_subcmd,
+  app_helpers::configure_cli11_with_metrics_appconfig_schema(*external_metrics_subcmd,
                                                                    config.metrics_consumers_cfg);
 }
