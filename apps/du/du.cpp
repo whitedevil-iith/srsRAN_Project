@@ -28,6 +28,7 @@
 #include "apps/services/application_tracer.h"
 #include "apps/services/buffer_pool/buffer_pool_manager.h"
 #include "apps/services/cmdline/cmdline_command_dispatcher.h"
+#include "apps/services/external_metrics_collector/external_metrics_collector.h"
 #include "apps/services/metrics/metrics_manager.h"
 #include "apps/services/metrics/metrics_notifier_proxy.h"
 #include "apps/services/remote_control/remote_server.h"
@@ -364,6 +365,14 @@ int main(int argc, char** argv)
       metrics_notifier_forwarder, du_cfg.metrics_cfg.rusage_config, srslog::fetch_basic_logger("GNB"));
 
   for (auto& metric : app_resource_usage_service.metrics) {
+    app_metrics.push_back(std::move(metric));
+  }
+
+  // Create external metrics collector service (cAdvisor and Node Exporter).
+  auto external_metrics_service = app_services::build_external_metrics_collector_service(
+      metrics_notifier_forwarder, du_cfg.metrics_cfg.external_metrics_cfg, srslog::fetch_basic_logger("GNB"));
+
+  for (auto& metric : external_metrics_service.metrics) {
     app_metrics.push_back(std::move(metric));
   }
 
