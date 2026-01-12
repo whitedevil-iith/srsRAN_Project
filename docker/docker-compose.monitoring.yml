@@ -82,7 +82,7 @@ services:
       - /dev/bus/usb/:/dev/bus/usb/
       - /usr/share/uhd/images:/usr/share/uhd/images
       - ${CU0_CONFIG_PATH:-./configs/cu0.yml}:/config/cu.conf:ro
-      - ${CU0_ENTRYPOINT_PATH:-./scripts/entrypoint_cu0.sh}:/tmp/entrypoint.sh:ro
+      - ${CU0_ENTRYPOINT_PATH:-./scripts/entrypoint_cu0.sh}:/tmp/entrypoint.sh
     environment:
       - CADVISOR_ENDPOINT=http://cadvisor:8080
       - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
@@ -115,7 +115,7 @@ services:
       - /dev/bus/usb/:/dev/bus/usb/
       - /usr/share/uhd/images:/usr/share/uhd/images
       - ${CU1_CONFIG_PATH:-./configs/cu1.yml}:/config/cu.conf:ro
-      - ${CU1_ENTRYPOINT_PATH:-./scripts/entrypoint_cu1.sh}:/tmp/entrypoint.sh:ro
+      - ${CU1_ENTRYPOINT_PATH:-./scripts/entrypoint_cu1.sh}:/tmp/entrypoint.sh  
     environment:
       - CADVISOR_ENDPOINT=http://cadvisor:8080
       - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
@@ -235,6 +235,87 @@ services:
         reservations:
           cpus: "4.0"
           memory: 4G
+
+  # =============================================================================
+  # RU Nodes (Radio Units) - ZMQ Servers for DU Radio Backend
+  # =============================================================================
+  ru0:
+    container_name: srsru0
+    image: srsran/gnb
+    stdin_open: true
+    tty: true
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.1.20
+    volumes:
+      - ${RU0_CONFIG_PATH:-./configs/ru0.yml}:/config/ru.conf:ro
+    environment:
+      - CADVISOR_ENDPOINT=http://cadvisor:8080
+      - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
+    depends_on:
+      5gc:
+        condition: service_healthy
+    command: gnb -c /config/ru.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "2.0"
+          memory: 2G
+
+  ru1:
+    container_name: srsru1
+    image: srsran/gnb
+    stdin_open: true
+    tty: true
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.1.21
+    volumes:
+      - ${RU1_CONFIG_PATH:-./configs/ru1.yml}:/config/ru.conf:ro
+    environment:
+      - CADVISOR_ENDPOINT=http://cadvisor:8080
+      - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
+    depends_on:
+      5gc:
+        condition: service_healthy
+    command: gnb -c /config/ru.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "2.0"
+          memory: 2G
+
+  ru2:
+    container_name: srsru2
+    image: srsran/gnb
+    stdin_open: true
+    tty: true
+    networks:
+      oran-intel:
+        ipv4_address: 175.53.1.22
+    volumes:
+      - ${RU2_CONFIG_PATH:-./configs/ru2.yml}:/config/ru.conf:ro
+    environment:
+      - CADVISOR_ENDPOINT=http://cadvisor:8080
+      - NODE_EXPORTER_ENDPOINT=http://node-exporter:9100/metrics
+    depends_on:
+      5gc:
+        condition: service_healthy
+    command: gnb -c /config/ru.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "2.0"
+          memory: 2G
 
   # =============================================================================
   # Telegraf Metrics Collectors for E2 Nodes

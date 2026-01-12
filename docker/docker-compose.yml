@@ -88,6 +88,51 @@ services:
     # Command to run into the final container
     command: gnb -c /gnb_config.yml -c /gnb_compose_config.yml
 
+  ru0:
+    container_name: srsran_ru0
+    image: srsran/gnb
+    networks:
+      ran:
+        ipv4_address: 10.53.1.7
+    volumes:
+      - gnb-storage:/tmp,subpath=ru0
+    depends_on:
+      5gc:
+        condition: service_healthy
+    configs:
+      - ru0_config.yml
+    command: gnb -c /ru0_config.yml
+
+  ru1:
+    container_name: srsran_ru1
+    image: srsran/gnb
+    networks:
+      ran:
+        ipv4_address: 10.53.1.8
+    volumes:
+      - gnb-storage:/tmp,subpath=ru1
+    depends_on:
+      5gc:
+        condition: service_healthy
+    configs:
+      - ru1_config.yml
+    command: gnb -c /ru1_config.yml
+
+  ru2:
+    container_name: srsran_ru2
+    image: srsran/gnb
+    networks:
+      ran:
+        ipv4_address: 10.53.1.9
+    volumes:
+      - gnb-storage:/tmp,subpath=ru2
+    depends_on:
+      5gc:
+        condition: service_healthy
+    configs:
+      - ru2_config.yml
+    command: gnb -c /ru2_config.yml
+
 configs:
   gnb_config.yml:
     file: ${GNB_CONFIG_PATH:-../configs/gnb_rf_b200_tdd_n78_20mhz.yml} # Path to your desired config file
@@ -103,6 +148,12 @@ configs:
       remote_control:
         bind_addr: 0.0.0.0
         enabled: true
+  ru0_config.yml:
+    file: ./configs/ru0.yml
+  ru1_config.yml:
+    file: ./configs/ru1.yml
+  ru2_config.yml:
+    file: ./configs/ru2.yml
 
 volumes:
   gnb-storage:

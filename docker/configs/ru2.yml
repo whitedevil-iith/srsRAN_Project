@@ -1,0 +1,9 @@
+# srsRAN gNB (RU) configuration file - RU2
+# ZMQ Server Mode for Radio Unit
+
+ru_sdr:
+  device_driver: zmq
+  device_args: tx_port0=tcp://175.53.1.22:20010,rx_port0=tcp://175.53.1.22:20011,tx_port1=tcp://175.53.1.22:20020,rx_port1=tcp://175.53.1.22:20021,tx_port2=tcp://175.53.1.22:20030,rx_port2=tcp://175.53.1.22:20031
+  srate: 23.04
+  tx_gain: 50
+  rx_gain: 40

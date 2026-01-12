@@ -27,40 +27,35 @@ cu_cp:
 
   # E1AP Configuration (CU-CP to CU-UP interface)
   e1ap:
-    bind_addr: 175.53.10.2              # Bind address for E1AP
-
+    # bind_addr: 175.53.10.2              # Bind address for E1AP
+    procedure_timeout: 10000
   # F1AP Configuration (CU to DU interface)
   f1ap:
     bind_addr: 175.53.10.2              # Bind address for F1AP
-
-# =============================================================================
-# CU-UP Configuration (User Plane) - Only if running combined CU
-# =============================================================================
-cu_up:
-  # NGU Configuration (N3 interface to UPF)
-  ngu:
-    socket:
-      -
-        bind_addr: 175.53.10.2          # Bind address for N3 interface
-
-  # F1-U Configuration (User plane to DU)
-  f1u:
-    socket:
-      -
-        bind_addr: 175.53.10.2          # Bind address for F1-U interface
 
 # =============================================================================
 # Metrics Configuration
 # =============================================================================
 metrics:
   # Enable automatic stdout metrics reporting
-  autostart_stdout_metrics: true
+  enable_verbose: true
 
   # Enable JSON format metrics (required for WebSocket/Telegraf)
-  enable_json_metrics: true
+  enable_json: true
 
-  # Metrics reporting interval in milliseconds
-  report_period_ms: 1000
+  layers:
+    enable_app_usage: true
+    enable_ngap: true
+    enable_rrc: true
+    enable_e1ap: true
+    enable_pdcp: true
+
+  periodicity:
+    app_usage_report_period: 1000
+    cu_cp_report_period: 1000
+    cu_up_report_period: 1000
+  # # Metrics reporting interval in milliseconds
+  # report_period_ms: 1000
 
 # =============================================================================
 # External Metrics Configuration
@@ -82,14 +77,10 @@ external_metrics:
   # Default port for Node Exporter is 9100
   node_exporter_endpoint: "http://175.40.1.8:9100/metrics"
 
-  # Enable human-readable log output for external metrics
-  enable_log_metrics: true
-
-  # Enable JSON output for external metrics (forwarded to WebSocket subscribers)
-  enable_json_metrics: true
-
-  # Collection interval in milliseconds
-  collection_interval_ms: 1000
+  metrics:
+    enable_log: true
+    enable_json: true
+    enable_verbose: true
 
 # =============================================================================
 # Remote Control Configuration
@@ -101,14 +92,11 @@ remote_control:
   enabled: true
 
   # Bind address for WebSocket server
-  bind_address: "0.0.0.0"
+  bind_addr: "0.0.0.0"
 
   # WebSocket server port
   port: 8001
 
-  # Enable metrics subscription via WebSocket
-  # This allows Telegraf to receive metrics in real-time
-  enable_metrics_subscription: true
 
 # =============================================================================
 # Logging Configuration
@@ -124,18 +112,7 @@ log:
   # Hex dump limit for log messages
   hex_max_size: 32
 
-# =============================================================================
-# Resource Usage Metrics (built-in)
-# =============================================================================
-rusage:
-  # Enable application resource usage metrics
-  enable_app_usage: true
 
-  # Enable human-readable log output for resource usage
-  enable_log_metrics: true
-
-  # Enable JSON output for resource usage (forwarded to WebSocket subscribers)
-  enable_json_metrics: true
 
 # =============================================================================
 # PCAP Configuration (Packet Capture)
