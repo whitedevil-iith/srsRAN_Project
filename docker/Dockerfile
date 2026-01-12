@@ -49,7 +49,7 @@ ADD . /src
 RUN /src/docker/scripts/install_dependencies.sh build && \
     /src/docker/scripts/install_uhd_dependencies.sh build && \
     /src/docker/scripts/install_dpdk_dependencies.sh build && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git clang
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git clang libzmq3-dev
 
 ARG UHD_VERSION
 ARG DPDK_VERSION
@@ -108,6 +108,16 @@ ADD docker/scripts/install_dependencies.sh      /usr/local/etc/install_srsran_de
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/uhd/${UHD_VERSION}/lib/:/opt/uhd/${UHD_VERSION}/lib/x86_64-linux-gnu/:/opt/uhd/${UHD_VERSION}/lib/aarch64-linux-gnu/
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/dpdk/${DPDK_VERSION}/lib/:/opt/dpdk/${DPDK_VERSION}/lib/x86_64-linux-gnu/:/opt/dpdk/${DPDK_VERSION}/lib/aarch64-linux-gnu/
 ENV PATH=$PATH:/opt/uhd/${UHD_VERSION}/bin/:/opt/dpdk/${DPDK_VERSION}/bin/
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        libfftw3-dev \
+        libmbedtls-dev \
+        libboost-program-options-dev \
+        libconfig++-dev \
+        libsctp-dev \
+        libzmq3-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install srsran and lib runtime dependencies
 RUN /usr/local/etc/install_srsran_dependencies.sh run && \

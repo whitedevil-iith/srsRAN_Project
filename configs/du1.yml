@@ -1,0 +1,175 @@
+# =============================================================================
+# Example srsRAN DU Configuration with External Metrics Collection (DU1)
+# =============================================================================
+#
+# This is an example configuration file for DU1 (Distributed Unit).
+# It demonstrates all available services and enables external metrics collection
+# from cAdvisor and Node Exporter.
+#
+# Use this as a reference to create your own configuration file.
+#
+
+# =============================================================================
+# F1AP Configuration (DU to CU interface)
+# =============================================================================
+f1ap:
+  # Address of the CU-CP F1AP endpoint
+  cu_cp_addr: 175.53.10.2               # IP address of CU1
+
+  # Local bind address for F1AP
+  bind_addr: 175.53.1.13                # DU's bind address
+
+# =============================================================================
+# F1-U Configuration (User plane to CU)
+# =============================================================================
+f1u:
+  socket:
+    -
+      bind_addr: 175.53.1.13            # Bind address for F1-U interface
+
+# =============================================================================
+# Radio Unit (RU) SDR Configuration
+# =============================================================================
+ru_sdr:
+  # RF driver name
+  device_driver: zmq
+
+  # RF driver arguments - ZMQ client mode connecting to RU1
+  device_args: tx_port0=tcp://175.53.1.21:20010,rx_port0=tcp://175.53.1.21:20011,tx_port1=tcp://175.53.1.21:20020,rx_port1=tcp://175.53.1.21:20021,tx_port2=tcp://175.53.1.21:20030,rx_port2=tcp://175.53.1.21:20031
+
+  # Sample rate in MHz
+  srate: 23.04
+
+  # Transmit gain in dB
+  tx_gain: 50
+
+  # Receive gain in dB
+  rx_gain: 40
+
+# =============================================================================
+# Cell Configuration
+# =============================================================================
+cell_cfg:
+  # Downlink ARFCN (Absolute Radio Frequency Channel Number)
+  dl_arfcn: 368500
+
+  # NR frequency band
+  band: 3
+
+  # Channel bandwidth in MHz
+  channel_bandwidth_MHz: 20
+
+  # Common subcarrier spacing in kHz
+  common_scs: 15
+
+  # PLMN ID
+  plmn: "00101"
+
+  # Tracking Area Code
+  tac: 7
+
+  # Physical Cell ID
+  pci: 1
+
+# =============================================================================
+# Metrics Configuration
+# =============================================================================
+metrics:
+  # Enable automatic stdout metrics reporting
+  autostart_stdout_metrics: true
+
+  # Enable JSON format metrics (required for WebSocket/Telegraf)
+  enable_json: true
+
+  periodicity:
+    app_usage_report_period: 1000
+    du_report_period: 1000
+  
+  layers:
+    enable_app_usage: true
+    enable_sched: true
+    enable_rlc: true
+    enable_mac: true
+    enable_du_low: true
+    enable_ru: true
+
+  # # Metrics reporting interval in milliseconds
+  # report_period_ms: 1000
+
+# =============================================================================
+# External Metrics Configuration
+# =============================================================================
+# This section enables collection of metrics from external sources
+# (cAdvisor for container metrics and Node Exporter for host metrics)
+#
+external_metrics:
+  # Enable external metrics collection
+  enable: true
+
+  # cAdvisor endpoint for Docker container metrics
+  # This collects CPU, memory, network, and filesystem metrics for containers
+  # Default port for cAdvisor is 8080
+  cadvisor_endpoint: "http://175.40.1.7:8080/api/v1.3/docker"
+
+  # Node Exporter endpoint for host system metrics
+  # This collects CPU, memory, disk, network, and other host-level metrics
+  # Default port for Node Exporter is 9100
+  node_exporter_endpoint: "http://175.40.1.8:9100/metrics"
+
+  # Enable human-readable log output for external metrics
+  metrics:
+    enable_log: true
+    enable_json: true
+    enable_verbose: true
+
+# =============================================================================
+# Remote Control Configuration
+# =============================================================================
+# Enables WebSocket interface for remote control and metrics subscription
+#
+remote_control:
+  # Enable remote control interface
+  enabled: true
+
+  # Bind address for WebSocket server
+  bind_addr: "0.0.0.0"
+
+  # WebSocket server port
+  port: 8001
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+log:
+  # Log file path
+  filename: /tmp/du.log
+
+  # Log level for all components
+  # Options: none, error, warning, info, debug
+  all_level: info
+
+  # PHY layer specific log level
+  phy_level: warning
+
+  # MAC layer specific log level
+  mac_level: info
+
+  # Hex dump limit for log messages
+  hex_max_size: 32
+
+
+# =============================================================================
+# PCAP Configuration (Packet Capture)
+# =============================================================================
+pcap:
+  # MAC layer packet capture
+  mac_enable: false
+  mac_filename: /tmp/du_mac.pcap
+
+  # F1AP (DU-CU interface) packet capture
+  f1ap_enable: false
+  f1ap_filename: /tmp/du_f1ap.pcap
+
+  # F1-U (User plane) packet capture
+  f1u_enable: false
+  f1u_filename: /tmp/du_f1u.pcap
