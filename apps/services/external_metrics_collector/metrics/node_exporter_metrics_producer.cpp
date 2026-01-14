@@ -42,6 +42,13 @@ void node_exporter_metrics_producer_impl::on_new_report_period()
 node_exporter_metrics node_exporter_metrics_producer_impl::parse_node_exporter_response(const std::string& response)
 {
   node_exporter_metrics metrics;
+  auto                  current_time = std::chrono::steady_clock::now();
+
+  // Temporary storage for counter values (to be converted to rates)
+  uint64_t disk_read_bytes       = 0;
+  uint64_t disk_write_bytes      = 0;
+  uint64_t network_receive_bytes = 0;
+  uint64_t network_transmit_bytes = 0;
 
   // Parse Prometheus text format
   std::istringstream stream(response);
@@ -80,17 +87,17 @@ node_exporter_metrics node_exporter_metrics_producer_impl::parse_node_exporter_r
         cpu_idle_sum += metric_value;
         cpu_count++;
       }
-      // Extract disk I/O metrics
+      // Extract disk I/O metrics (counters - will be converted to rates)
       else if (metric_name == "node_disk_read_bytes_total") {
-        metrics.disk_read_bytes += static_cast<uint64_t>(metric_value);
+        disk_read_bytes += static_cast<uint64_t>(metric_value);
       } else if (metric_name == "node_disk_written_bytes_total") {
-        metrics.disk_write_bytes += static_cast<uint64_t>(metric_value);
+        disk_write_bytes += static_cast<uint64_t>(metric_value);
       }
-      // Extract network metrics
+      // Extract network metrics (counters - will be converted to rates)
       else if (metric_name == "node_network_receive_bytes_total") {
-        metrics.network_receive_bytes += static_cast<uint64_t>(metric_value);
+        network_receive_bytes += static_cast<uint64_t>(metric_value);
       } else if (metric_name == "node_network_transmit_bytes_total") {
-        metrics.network_transmit_bytes += static_cast<uint64_t>(metric_value);
+        network_transmit_bytes += static_cast<uint64_t>(metric_value);
       }
       // Extract load average
       else if (metric_name == "node_load1") {
@@ -113,6 +120,44 @@ node_exporter_metrics node_exporter_metrics_producer_impl::parse_node_exporter_r
   if (metrics.memory_total_bytes > metrics.memory_available_bytes) {
     metrics.memory_used_bytes = metrics.memory_total_bytes - metrics.memory_available_bytes;
   }
+
+  // Convert counter metrics to rate (bytes/sec)
+  if (previous_state_.is_valid) {
+    auto time_delta = std::chrono::duration<double>(current_time - previous_state_.timestamp).count();
+    if (time_delta > 0) {
+      // Calculate rate as (current - previous) / time_delta
+      metrics.disk_read_bytes_per_sec =
+          static_cast<double>(disk_read_bytes - previous_state_.disk_read_bytes) / time_delta;
+      metrics.disk_write_bytes_per_sec =
+          static_cast<double>(disk_write_bytes - previous_state_.disk_write_bytes) / time_delta;
+      metrics.network_receive_bytes_per_sec =
+          static_cast<double>(network_receive_bytes - previous_state_.network_receive_bytes) / time_delta;
+      metrics.network_transmit_bytes_per_sec =
+          static_cast<double>(network_transmit_bytes - previous_state_.network_transmit_bytes) / time_delta;
+
+      // Ensure non-negative rates (counter might wrap)
+      if (metrics.disk_read_bytes_per_sec < 0) {
+        metrics.disk_read_bytes_per_sec = 0.0;
+      }
+      if (metrics.disk_write_bytes_per_sec < 0) {
+        metrics.disk_write_bytes_per_sec = 0.0;
+      }
+      if (metrics.network_receive_bytes_per_sec < 0) {
+        metrics.network_receive_bytes_per_sec = 0.0;
+      }
+      if (metrics.network_transmit_bytes_per_sec < 0) {
+        metrics.network_transmit_bytes_per_sec = 0.0;
+      }
+    }
+  }
+
+  // Update previous state
+  previous_state_.disk_read_bytes       = disk_read_bytes;
+  previous_state_.disk_write_bytes      = disk_write_bytes;
+  previous_state_.network_receive_bytes = network_receive_bytes;
+  previous_state_.network_transmit_bytes = network_transmit_bytes;
+  previous_state_.timestamp             = current_time;
+  previous_state_.is_valid              = true;
 
   // Note: CPU usage percentage calculation from idle time would require maintaining state
   // between calls to calculate the delta. For simplicity, we'll leave it at 0 for now

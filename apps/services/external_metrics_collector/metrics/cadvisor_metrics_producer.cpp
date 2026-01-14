@@ -41,6 +41,7 @@ void cadvisor_metrics_producer_impl::on_new_report_period()
 cadvisor_metrics cadvisor_metrics_producer_impl::parse_cadvisor_response(const std::string& response)
 {
   cadvisor_metrics metrics;
+  auto             current_time = std::chrono::steady_clock::now();
 
   try {
     nlohmann::json json_data = nlohmann::json::parse(response);
@@ -88,7 +89,7 @@ cadvisor_metrics cadvisor_metrics_producer_impl::parse_cadvisor_response(const s
         }
       }
 
-      // Extract network usage
+      // Extract network usage and convert counter to rate
       if (latest_stats.contains("network")) {
         if (latest_stats["network"].contains("interfaces") && !latest_stats["network"]["interfaces"].empty()) {
           uint64_t total_rx = 0, total_tx = 0;
@@ -100,8 +101,31 @@ cadvisor_metrics cadvisor_metrics_producer_impl::parse_cadvisor_response(const s
               total_tx += iface["tx_bytes"].get<uint64_t>();
             }
           }
-          container_metrics.network_rx_bytes = total_rx;
-          container_metrics.network_tx_bytes = total_tx;
+
+          // Convert counter metrics to rate (bytes/sec)
+          auto& prev_state = previous_states_[container_metrics.container_name];
+          if (prev_state.is_valid) {
+            auto time_delta = std::chrono::duration<double>(current_time - prev_state.timestamp).count();
+            if (time_delta > 0) {
+              // Calculate rate as (current - previous) / time_delta
+              container_metrics.network_rx_bytes_per_sec =
+                  static_cast<double>(total_rx - prev_state.network_rx_bytes) / time_delta;
+              container_metrics.network_tx_bytes_per_sec =
+                  static_cast<double>(total_tx - prev_state.network_tx_bytes) / time_delta;
+              // Ensure non-negative rates (counter might wrap)
+              if (container_metrics.network_rx_bytes_per_sec < 0) {
+                container_metrics.network_rx_bytes_per_sec = 0.0;
+              }
+              if (container_metrics.network_tx_bytes_per_sec < 0) {
+                container_metrics.network_tx_bytes_per_sec = 0.0;
+              }
+            }
+          }
+          // Update previous state
+          prev_state.network_rx_bytes = total_rx;
+          prev_state.network_tx_bytes = total_tx;
+          prev_state.timestamp        = current_time;
+          prev_state.is_valid         = true;
         }
       }
 

@@ -90,36 +90,43 @@ external_metrics:
 
 ## Collected Metrics
 
+All metrics are prefixed with their source:
+- cAdvisor metrics: prefixed with `cAdvisor_`
+- Node Exporter metrics: prefixed with `NodeExporter_`
+- RAN metrics: prefixed with `RAN_`
+
+All counter metrics are automatically converted to gauge/rate metrics (delta/time).
+
 ### cAdvisor Metrics (Per Container)
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `container_name` | string | Container name or ID |
-| `cpu_usage_percentage` | double | CPU usage as percentage |
-| `memory_usage_bytes` | uint64 | Current memory usage in bytes |
-| `memory_limit_bytes` | uint64 | Memory limit in bytes |
-| `network_rx_bytes` | uint64 | Network received bytes (cumulative) |
-| `network_tx_bytes` | uint64 | Network transmitted bytes (cumulative) |
-| `filesystem_usage` | uint64 | Filesystem usage in bytes |
-| `filesystem_limit` | uint64 | Filesystem limit in bytes |
+| `cAdvisor_container_name` | string | Container name or ID |
+| `cAdvisor_cpu_usage_percentage` | double | CPU usage as percentage (gauge) |
+| `cAdvisor_memory_usage_bytes` | uint64 | Current memory usage in bytes (gauge) |
+| `cAdvisor_memory_limit_bytes` | uint64 | Memory limit in bytes (gauge) |
+| `cAdvisor_network_rx_bytes_per_sec` | double | Network receive rate in bytes/sec (converted from counter) |
+| `cAdvisor_network_tx_bytes_per_sec` | double | Network transmit rate in bytes/sec (converted from counter) |
+| `cAdvisor_filesystem_usage` | uint64 | Filesystem usage in bytes (gauge) |
+| `cAdvisor_filesystem_limit` | uint64 | Filesystem limit in bytes (gauge) |
 
 ### Node Exporter Metrics (Host System)
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `cpu_usage_percentage` | double | CPU usage as percentage |
-| `memory_total_bytes` | uint64 | Total system memory in bytes |
-| `memory_available_bytes` | uint64 | Available memory in bytes |
-| `memory_used_bytes` | uint64 | Used memory in bytes |
-| `disk_read_bytes` | uint64 | Disk read bytes (cumulative) |
-| `disk_write_bytes` | uint64 | Disk write bytes (cumulative) |
-| `network_receive_bytes` | uint64 | Network received bytes (cumulative) |
-| `network_transmit_bytes` | uint64 | Network transmitted bytes (cumulative) |
-| `load_average_1m` | double | System load average (1 minute) |
-| `load_average_5m` | double | System load average (5 minutes) |
-| `load_average_15m` | double | System load average (15 minutes) |
-| `filesystem_size_bytes` | uint64 | Root filesystem size in bytes |
-| `filesystem_avail_bytes` | uint64 | Root filesystem available in bytes |
+| `NodeExporter_cpu_usage_percentage` | double | CPU usage as percentage (gauge) |
+| `NodeExporter_memory_total_bytes` | uint64 | Total system memory in bytes (gauge) |
+| `NodeExporter_memory_available_bytes` | uint64 | Available memory in bytes (gauge) |
+| `NodeExporter_memory_used_bytes` | uint64 | Used memory in bytes (gauge) |
+| `NodeExporter_disk_read_bytes_per_sec` | double | Disk read rate in bytes/sec (converted from counter) |
+| `NodeExporter_disk_write_bytes_per_sec` | double | Disk write rate in bytes/sec (converted from counter) |
+| `NodeExporter_network_receive_bytes_per_sec` | double | Network receive rate in bytes/sec (converted from counter) |
+| `NodeExporter_network_transmit_bytes_per_sec` | double | Network transmit rate in bytes/sec (converted from counter) |
+| `NodeExporter_load_average_1m` | double | System load average (1 minute) (gauge) |
+| `NodeExporter_load_average_5m` | double | System load average (5 minutes) (gauge) |
+| `NodeExporter_load_average_15m` | double | System load average (15 minutes) (gauge) |
+| `NodeExporter_filesystem_size_bytes` | uint64 | Root filesystem size in bytes (gauge) |
+| `NodeExporter_filesystem_avail_bytes` | uint64 | Root filesystem available in bytes (gauge) |
 
 ## Setup Instructions
 
@@ -186,14 +193,14 @@ wscat -c ws://localhost:55555
   "metric_type": "cadvisor",
   "containers": [
     {
-      "container_name": "srsran_gnb",
-      "cpu_usage_percentage": 45.2,
-      "memory_usage_bytes": 524288000,
-      "memory_limit_bytes": 2147483648,
-      "network_rx_bytes": 1048576,
-      "network_tx_bytes": 2097152,
-      "filesystem_usage": 104857600,
-      "filesystem_limit": 10737418240
+      "cAdvisor_container_name": "srsran_gnb",
+      "cAdvisor_cpu_usage_percentage": 45.2,
+      "cAdvisor_memory_usage_bytes": 524288000,
+      "cAdvisor_memory_limit_bytes": 2147483648,
+      "cAdvisor_network_rx_bytes_per_sec": 102400.5,
+      "cAdvisor_network_tx_bytes_per_sec": 204800.25,
+      "cAdvisor_filesystem_usage": 104857600,
+      "cAdvisor_filesystem_limit": 10737418240
     }
   ]
 }
@@ -202,23 +209,27 @@ wscat -c ws://localhost:55555
 ```json
 {
   "metric_type": "node_exporter",
-  "cpu_usage_percentage": 23.5,
-  "memory_total_bytes": 16777216000,
-  "memory_available_bytes": 8388608000,
-  "memory_used_bytes": 8388608000,
-  "load_average_1m": 1.25,
-  "load_average_5m": 1.15,
-  "load_average_15m": 1.05,
-  "filesystem_size_bytes": 107374182400,
-  "filesystem_avail_bytes": 53687091200
+  "NodeExporter_cpu_usage_percentage": 23.5,
+  "NodeExporter_memory_total_bytes": 16777216000,
+  "NodeExporter_memory_available_bytes": 8388608000,
+  "NodeExporter_memory_used_bytes": 8388608000,
+  "NodeExporter_disk_read_bytes_per_sec": 51200.5,
+  "NodeExporter_disk_write_bytes_per_sec": 25600.25,
+  "NodeExporter_network_receive_bytes_per_sec": 102400.5,
+  "NodeExporter_network_transmit_bytes_per_sec": 204800.25,
+  "NodeExporter_load_average_1m": 1.25,
+  "NodeExporter_load_average_5m": 1.15,
+  "NodeExporter_load_average_15m": 1.05,
+  "NodeExporter_filesystem_size_bytes": 107374182400,
+  "NodeExporter_filesystem_avail_bytes": 53687091200
 }
 ```
 
 ### Log Output
 
 ```
-cAdvisor metrics [srsran_gnb]: cpu=45.20%, memory=500.00/2048.00 MB, net_rx=1048576 bytes, net_tx=2097152 bytes
-Node Exporter metrics: cpu=23.50%, memory=8000.00/16000.00 MB, load=[1.25, 1.15, 1.05], disk=50.00/100.00 GB
+cAdvisor metrics [srsran_gnb]: cpu=45.20%, memory=500.00/2048.00 MB, net_rx=102400.50 bytes/s, net_tx=204800.25 bytes/s
+NodeExporter metrics: cpu=23.50%, memory=8000.00/16000.00 MB, load=[1.25, 1.15, 1.05], disk_read=51200.50 B/s, disk_write=25600.25 B/s, net_rx=102400.50 B/s, net_tx=204800.25 B/s, disk=50.00/100.00 GB
 ```
 
 ## Integration with Existing Monitoring

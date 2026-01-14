@@ -27,11 +27,22 @@
 #include "apps/services/metrics/metrics_notifier.h"
 #include "apps/services/metrics/metrics_producer.h"
 #include "srsran/srslog/srslog.h"
+#include <chrono>
+#include <map>
 #include <string>
 
 namespace srsran {
 
+/// Structure to store previous counter values and timestamp for delta calculation.
+struct cadvisor_previous_state {
+  uint64_t                                     network_rx_bytes = 0;
+  uint64_t                                     network_tx_bytes = 0;
+  std::chrono::steady_clock::time_point        timestamp;
+  bool                                         is_valid = false;
+};
+
 /// cAdvisor metrics producer implementation.
+/// Converts counter metrics to gauge metrics by calculating the rate (delta/time).
 class cadvisor_metrics_producer_impl : public app_services::metrics_producer
 {
 public:
@@ -44,11 +55,22 @@ public:
 
 private:
   /// Parses cAdvisor JSON response and extracts metrics.
+  /// Counter metrics are converted to gauge metrics using previous state.
   cadvisor_metrics parse_cadvisor_response(const std::string& response);
+
+  /// Converts counter value to rate using previous state.
+  /// Returns 0.0 if this is the first sample or time delta is zero.
+  double convert_counter_to_rate(const std::string& container_name,
+                                 const std::string& metric_name,
+                                 uint64_t           current_value,
+                                 std::chrono::steady_clock::time_point current_time);
 
   app_services::metrics_notifier& notifier;
   std::string                     endpoint;
   srslog::basic_logger&           logger;
+
+  /// Storage for previous counter values per container.
+  std::map<std::string, cadvisor_previous_state> previous_states_;
 };
 
 } // namespace srsran

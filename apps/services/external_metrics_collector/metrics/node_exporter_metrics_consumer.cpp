@@ -31,20 +31,20 @@ void node_exporter_metrics_consumer_json::handle_metric(const app_services::metr
   const node_exporter_metrics& host_metrics = static_cast<const node_exporter_metrics_impl&>(metric).get_metrics();
 
   nlohmann::json json_output;
-  json_output["metric_type"]            = "node_exporter";
-  json_output["cpu_usage_percentage"]   = host_metrics.cpu_usage_percentage;
-  json_output["memory_total_bytes"]     = host_metrics.memory_total_bytes;
-  json_output["memory_available_bytes"] = host_metrics.memory_available_bytes;
-  json_output["memory_used_bytes"]      = host_metrics.memory_used_bytes;
-  json_output["disk_read_bytes"]        = host_metrics.disk_read_bytes;
-  json_output["disk_write_bytes"]       = host_metrics.disk_write_bytes;
-  json_output["network_receive_bytes"]  = host_metrics.network_receive_bytes;
-  json_output["network_transmit_bytes"] = host_metrics.network_transmit_bytes;
-  json_output["load_average_1m"]        = host_metrics.load_average_1m;
-  json_output["load_average_5m"]        = host_metrics.load_average_5m;
-  json_output["load_average_15m"]       = host_metrics.load_average_15m;
-  json_output["filesystem_size_bytes"]  = host_metrics.filesystem_size_bytes;
-  json_output["filesystem_avail_bytes"] = host_metrics.filesystem_avail_bytes;
+  json_output["metric_type"]                           = "node_exporter";
+  json_output["NodeExporter_cpu_usage_percentage"]     = host_metrics.cpu_usage_percentage;
+  json_output["NodeExporter_memory_total_bytes"]       = host_metrics.memory_total_bytes;
+  json_output["NodeExporter_memory_available_bytes"]   = host_metrics.memory_available_bytes;
+  json_output["NodeExporter_memory_used_bytes"]        = host_metrics.memory_used_bytes;
+  json_output["NodeExporter_disk_read_bytes_per_sec"]  = host_metrics.disk_read_bytes_per_sec;
+  json_output["NodeExporter_disk_write_bytes_per_sec"] = host_metrics.disk_write_bytes_per_sec;
+  json_output["NodeExporter_network_receive_bytes_per_sec"]  = host_metrics.network_receive_bytes_per_sec;
+  json_output["NodeExporter_network_transmit_bytes_per_sec"] = host_metrics.network_transmit_bytes_per_sec;
+  json_output["NodeExporter_load_average_1m"]          = host_metrics.load_average_1m;
+  json_output["NodeExporter_load_average_5m"]          = host_metrics.load_average_5m;
+  json_output["NodeExporter_load_average_15m"]         = host_metrics.load_average_15m;
+  json_output["NodeExporter_filesystem_size_bytes"]    = host_metrics.filesystem_size_bytes;
+  json_output["NodeExporter_filesystem_avail_bytes"]   = host_metrics.filesystem_avail_bytes;
 
   log_chan("{}", json_output.dump(2));
 }
@@ -63,7 +63,8 @@ void node_exporter_metrics_consumer_log::handle_metric(const app_services::metri
 
   fmt::memory_buffer buffer;
   fmt::format_to(std::back_inserter(buffer),
-                 "Node Exporter metrics: cpu={:.2f}%, memory={:.2f}/{:.2f} MB, load=[{:.2f}, {:.2f}, {:.2f}], "
+                 "NodeExporter metrics: cpu={:.2f}%, memory={:.2f}/{:.2f} MB, load=[{:.2f}, {:.2f}, {:.2f}], "
+                 "disk_read={:.2f} B/s, disk_write={:.2f} B/s, net_rx={:.2f} B/s, net_tx={:.2f} B/s, "
                  "disk={:.2f}/{:.2f} GB",
                  host_metrics.cpu_usage_percentage,
                  mem_used_mb,
@@ -71,6 +72,10 @@ void node_exporter_metrics_consumer_log::handle_metric(const app_services::metri
                  host_metrics.load_average_1m,
                  host_metrics.load_average_5m,
                  host_metrics.load_average_15m,
+                 host_metrics.disk_read_bytes_per_sec,
+                 host_metrics.disk_write_bytes_per_sec,
+                 host_metrics.network_receive_bytes_per_sec,
+                 host_metrics.network_transmit_bytes_per_sec,
                  fs_avail_gb,
                  fs_size_gb);
 

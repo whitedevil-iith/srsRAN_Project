@@ -26,7 +26,7 @@ f1u:
 # =============================================================================
 ru_sdr:
   device_driver: zmq
-  device_args: tx_port0=tcp://175.53.1.12:2000,rx_port0=tcp://175.53.1.12:2001,tx_port1=tcp://175.53.1.12:2100,rx_port1=tcp://175.53.1.12:2101
+  device_args: tx_port0=tcp://175.53.1.14:2000,rx_port0=tcp://175.53.1.14:2001,tx_port1=tcp://175.53.1.14:2100,rx_port1=tcp://175.53.1.14:2101
   srate: 23.04
   tx_gain: 50
   rx_gain: 40
@@ -44,7 +44,8 @@ cell_cfg:
   pci: 3
 
 # =============================================================================
-# Test Mode Configuration (for 2 UEs)
+# Test Mode Configuration (for 2 UEs with UL/DL traffic enabled)
+# DU2 uses different CQI=10 for diversity (RI must be <= nof_dl_ports)
 # =============================================================================
 test_mode:
   test_ue:
@@ -52,7 +53,7 @@ test_mode:
     nof_ues: 2
     pdsch_active: true
     pusch_active: true
-    cqi: 15
+    cqi: 10
     ri: 1
     pmi: 0
 

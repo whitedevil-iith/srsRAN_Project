@@ -36,14 +36,14 @@ void cadvisor_metrics_consumer_json::handle_metric(const app_services::metrics_s
 
   for (const auto& container : container_metrics.containers) {
     nlohmann::json container_json;
-    container_json["container_name"]       = container.container_name;
-    container_json["cpu_usage_percentage"] = container.cpu_usage_percentage;
-    container_json["memory_usage_bytes"]   = container.memory_usage_bytes;
-    container_json["memory_limit_bytes"]   = container.memory_limit_bytes;
-    container_json["network_rx_bytes"]     = container.network_rx_bytes;
-    container_json["network_tx_bytes"]     = container.network_tx_bytes;
-    container_json["filesystem_usage"]     = container.filesystem_usage;
-    container_json["filesystem_limit"]     = container.filesystem_limit;
+    container_json["cAdvisor_container_name"]          = container.container_name;
+    container_json["cAdvisor_cpu_usage_percentage"]    = container.cpu_usage_percentage;
+    container_json["cAdvisor_memory_usage_bytes"]      = container.memory_usage_bytes;
+    container_json["cAdvisor_memory_limit_bytes"]      = container.memory_limit_bytes;
+    container_json["cAdvisor_network_rx_bytes_per_sec"] = container.network_rx_bytes_per_sec;
+    container_json["cAdvisor_network_tx_bytes_per_sec"] = container.network_tx_bytes_per_sec;
+    container_json["cAdvisor_filesystem_usage"]        = container.filesystem_usage;
+    container_json["cAdvisor_filesystem_limit"]        = container.filesystem_limit;
 
     json_output["containers"].push_back(container_json);
   }
@@ -63,13 +63,13 @@ void cadvisor_metrics_consumer_log::handle_metric(const app_services::metrics_se
 
     fmt::memory_buffer buffer;
     fmt::format_to(std::back_inserter(buffer),
-                   "cAdvisor metrics [{}]: cpu={:.2f}%, memory={:.2f}/{:.2f} MB, net_rx={} bytes, net_tx={} bytes",
+                   "cAdvisor metrics [{}]: cpu={:.2f}%, memory={:.2f}/{:.2f} MB, net_rx={:.2f} bytes/s, net_tx={:.2f} bytes/s",
                    container.container_name,
                    container.cpu_usage_percentage,
                    mem_usage_mb,
                    mem_limit_mb,
-                   container.network_rx_bytes,
-                   container.network_tx_bytes);
+                   container.network_rx_bytes_per_sec,
+                   container.network_tx_bytes_per_sec);
 
     log_chan("{}", to_c_str(buffer));
   }

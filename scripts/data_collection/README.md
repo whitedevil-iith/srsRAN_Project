@@ -22,15 +22,20 @@ The docker-compose.srsue.yml supports the following topology:
 ### 1. `collect_metrics.py` - Data Collection Script
 
 Collects metrics from all E2 nodes including:
-- **cAdvisor** container metrics (CPU, memory, network, disk I/O)
-- **Node Exporter** host system metrics
-- **srsRAN** application metrics from all layers (via WebSocket)
+- **cAdvisor** container metrics (CPU, memory, network, disk I/O) - prefixed with `cAdvisor_`
+- **Node Exporter** host system metrics - prefixed with `NodeExporter_`
+- **srsRAN** application metrics from all layers (via WebSocket) - prefixed with `CU_` or `DU_`
 
 **Key Features:**
 - Configurable collection interval (default: 1 second)
-- Automatic conversion of counter metrics to gauge metrics (rate calculation)
+- Automatic conversion of counter metrics (ending with `_total`) to gauge/rate metrics
+- All counter metrics converted to delta/rate metrics: `(present_val - past_val) / (present_timestamp - past_timestamp)`
+- WebSocket connections include automatic reconnection with retry logic (5 retries, 5s delay)
 - Separate CSV file output for each E2 node
 - Timestamp-based synchronization across all samples
+
+**Docker Image:**
+Pre-built Docker image available via `Dockerfile.data-collector` - no runtime pip install needed.
 
 **Usage:**
 ```bash
