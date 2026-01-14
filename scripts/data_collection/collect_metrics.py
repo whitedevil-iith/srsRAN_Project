@@ -24,8 +24,8 @@ Data Collection Script for O-RAN E2 Nodes
 
 This script collects metrics from all E2 nodes (CUs, DUs), including:
 - cAdvisor container metrics (prefixed with "cAdvisor_")
-- Node Exporter host system metrics (prefixed with "nodeExporter_")
-- srsRAN application metrics from all layers (prefixed with "CU_" or "DU_")
+- Node Exporter host system metrics (prefixed with "NodeExporter_")
+- srsRAN application metrics from all layers (prefixed with "RAN_")
 
 All counter metrics are converted to gauge metrics by calculating the rate
 (difference of values / difference of timestamps).
@@ -388,7 +388,7 @@ class MetricsCollector:
     def collect_node_exporter_metrics(self) -> dict[str, Any]:
         """
         Collect metrics from Node Exporter.
-        Metrics are prefixed with "nodeExporter_" and aggregated (avg, min, max, stddev)
+        Metrics are prefixed with "NodeExporter_" and aggregated (avg, min, max, stddev)
         for per-CPU, per-interface, per-device, and per-sensor metrics.
 
         Returns:
@@ -622,10 +622,10 @@ def get_ran_prefix(node_name: str) -> str:
     they come from a CU or DU node.
     
     Args:
-        node_name: The E2 node name (e.g., "cu0", "du1")
+        node_name: The E2 node name (e.g., "cu0", "du1").
         
     Returns:
-        "RAN_" for all RAN nodes
+        "RAN_" for all RAN nodes.
     """
     return "RAN_"
 
@@ -769,7 +769,7 @@ def main():
                 # Add RAN metrics (prefixed with CU_ or DU_)
                 combined_metrics.update(prefixed_srsran_metrics)
 
-                # Add node exporter metrics (already prefixed with nodeExporter_)
+                # Add node exporter metrics (already prefixed with NodeExporter_)
                 if node_exporter_metrics:
                     combined_metrics.update(node_exporter_metrics)
 
