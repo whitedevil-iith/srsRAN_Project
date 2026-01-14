@@ -1,0 +1,52 @@
+#
+# Copyright 2021-2025 Software Radio Systems Limited
+#
+# This file is part of srsRAN
+#
+# srsRAN is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of
+# the License, or (at your option) any later version.
+#
+# srsRAN is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# A copy of the GNU Affero General Public License can be found in
+# the LICENSE file in the top-level directory of this distribution
+# and at http://www.gnu.org/licenses/.
+#
+
+# Dockerfile for the data collector service
+# Pre-installs all Python dependencies for metrics collection
+
+FROM python:3.11-slim
+
+LABEL maintainer="Software Radio Systems Limited"
+LABEL description="Data collector for O-RAN E2 node metrics"
+
+# Set working directory
+WORKDIR /scripts
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy collection scripts
+COPY collect_metrics.py .
+COPY utils.py .
+
+# Create output directory
+RUN mkdir -p /data/metrics
+
+# Set default environment variables
+ENV COLLECTION_INTERVAL=1
+ENV CADVISOR_URL=http://localhost:8080
+ENV NODE_EXPORTER_URL=http://localhost:9100
+ENV E2_NODES=""
+
+# Default command
+CMD ["python", "collect_metrics.py", \
+     "--interval", "1", \
+     "--output-dir", "/data/metrics"]

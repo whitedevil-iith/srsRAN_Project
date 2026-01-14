@@ -25,10 +25,10 @@ Data Collection Script for O-RAN E2 Nodes
 This script collects metrics from all E2 nodes (CUs, DUs), including:
 - cAdvisor container metrics (prefixed with "cAdvisor_")
 - Node Exporter host system metrics (prefixed with "NodeExporter_")
-- srsRAN application metrics from all layers (prefixed with "RAN_")
+- srsRAN application metrics from all layers (prefixed with "CU_" or "DU_")
 
-All counter metrics are converted to gauge metrics by calculating the rate
-(difference of values / difference of timestamps).
+All counter metrics (with "_total" suffix) are converted to gauge/rate metrics 
+by calculating the rate: (present_val - past_val) / (present_timestamp - past_timestamp)
 
 Metrics are aggregated (avg, min, max, stddev) instead of per-device/per-interface
 to make them host-agnostic.
@@ -276,7 +276,18 @@ class MetricsCollector:
         return metrics
 
     def _is_counter_metric(self, metric_name: str, source: str) -> bool:
-        """Check if a metric is a counter type."""
+        """
+        Check if a metric is a counter type.
+        
+        Counter metrics typically end with "_total" suffix and represent
+        monotonically increasing values that need to be converted to rates.
+        We also check against known counter patterns.
+        """
+        # Any metric ending with "_total" is a counter
+        if metric_name.endswith("_total"):
+            return True
+        
+        # Check against known counter patterns for specific sources
         if source == "cadvisor":
             return any(
                 metric_name.startswith(counter)
@@ -458,32 +469,74 @@ class MetricsCollector:
         except json.JSONDecodeError:
             pass
 
-    def _start_srsran_websocket(self, node_name: str, ws_url: str):
-        """Start WebSocket connection for srsRAN metrics."""
+    def _start_srsran_websocket(self, node_name: str, ws_url: str, max_retries: int = 5, retry_delay: float = 5.0):
+        """
+        Start WebSocket connection for srsRAN metrics with retry logic.
+        
+        Args:
+            node_name: Name of the E2 node
+            ws_url: WebSocket URL to connect to
+            max_retries: Maximum number of connection retries (default: 5)
+            retry_delay: Delay between retries in seconds (default: 5.0)
+        """
 
-        def on_open(ws):
-            ws.send(json.dumps({"cmd": "metrics_subscribe"}))
-            logger.info(f"Connected to srsRAN WebSocket for {node_name}")
+        def wait_and_retry(retry_count: int, message: str) -> None:
+            """Helper to log and wait before retry."""
+            if retry_count < max_retries:
+                logger.warning(f"{message}. Retrying in {retry_delay}s (attempt {retry_count}/{max_retries})")
+                time.sleep(retry_delay)
 
-        def on_message(ws, message):
-            self._on_srsran_message(node_name, message)
+        def run_with_reconnect():
+            retry_count = 0
+            connection_was_successful = False
+            
+            while not self._stop_event.is_set():
+                try:
+                    def on_open(ws):
+                        nonlocal connection_was_successful, retry_count
+                        ws.send(json.dumps({"cmd": "metrics_subscribe"}))
+                        logger.info(f"Connected to srsRAN WebSocket for {node_name}")
+                        # Reset retry count on successful connection
+                        connection_was_successful = True
+                        retry_count = 0
 
-        def on_error(ws, error):
-            logger.warning(f"WebSocket error for {node_name}: {error}")
+                    def on_message(ws, message):
+                        self._on_srsran_message(node_name, message)
 
-        def on_close(ws, close_status_code, close_msg):
-            logger.info(f"WebSocket closed for {node_name}")
+                    def on_error(ws, error):
+                        logger.warning(f"WebSocket error for {node_name}: {error}")
 
-        ws = websocket.WebSocketApp(
-            f"ws://{ws_url}",
-            on_open=on_open,
-            on_message=on_message,
-            on_error=on_error,
-            on_close=on_close,
-        )
-        self._ws_connections[node_name] = ws
+                    def on_close(ws, close_status_code, close_msg):
+                        logger.info(f"WebSocket closed for {node_name}")
 
-        thread = threading.Thread(target=ws.run_forever, daemon=True)
+                    ws = websocket.WebSocketApp(
+                        f"ws://{ws_url}",
+                        on_open=on_open,
+                        on_message=on_message,
+                        on_error=on_error,
+                        on_close=on_close,
+                    )
+                    self._ws_connections[node_name] = ws
+                    
+                    # Run until closed or error
+                    ws.run_forever(ping_interval=30, ping_timeout=10)
+                    
+                    # If we get here, connection was closed
+                    if not self._stop_event.is_set():
+                        retry_count += 1
+                        if retry_count >= max_retries:
+                            logger.error(f"Max retries reached for {node_name}. Giving up.")
+                            break
+                        wait_and_retry(retry_count, f"Connection closed for {node_name}")
+                        
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(f"Max retries reached for {node_name}: {e}. Giving up.")
+                        break
+                    wait_and_retry(retry_count, f"Connection failed for {node_name}: {e}")
+
+        thread = threading.Thread(target=run_with_reconnect, daemon=True)
         thread.start()
 
     def get_srsran_metrics(self, node_name: str) -> dict[str, Any]:
@@ -618,16 +671,21 @@ def get_ran_prefix(node_name: str) -> str:
     """
     Determine the appropriate RAN prefix based on node name.
     
-    All RAN metrics are prefixed with "RAN_" regardless of whether
-    they come from a CU or DU node.
+    CU nodes are prefixed with "CU_" and DU nodes are prefixed with "DU_".
     
     Args:
         node_name: The E2 node name (e.g., "cu0", "du1").
         
     Returns:
-        "RAN_" for all RAN nodes.
+        "CU_" for CU nodes, "DU_" for DU nodes.
     """
-    return "RAN_"
+    if node_name.lower().startswith("cu"):
+        return "CU_"
+    elif node_name.lower().startswith("du"):
+        return "DU_"
+    else:
+        # Default to node name prefix for unknown types
+        return f"{node_name.upper()}_"
 
 
 def prefix_dict_keys(d: dict[str, Any], prefix: str) -> dict[str, Any]:

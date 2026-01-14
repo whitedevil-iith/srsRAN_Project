@@ -1,0 +1,66 @@
+#
+# Copyright 2021-2025 Software Radio Systems Limited
+#
+# This file is part of srsRAN
+#
+# srsRAN is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of
+# the License, or (at your option) any later version.
+#
+# srsRAN is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# A copy of the GNU Affero General Public License can be found in
+# the LICENSE file in the top-level directory of this distribution
+# and at http://www.gnu.org/licenses/.
+#
+
+# Dockerfile for the stress generator service
+# Pre-installs all dependencies for stress testing
+
+FROM python:3.11-slim
+
+LABEL maintainer="Software Radio Systems Limited"
+LABEL description="Stress generator for O-RAN containers"
+
+# Set working directory
+WORKDIR /scripts
+
+# Install system dependencies (docker.io for docker CLI)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        docker.io \
+        iproute2 \
+        stress-ng && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy stress generation scripts
+COPY generate_stress.py .
+COPY utils.py .
+
+# Create output directory
+RUN mkdir -p /data/stress
+
+# Set default environment variables
+ENV STRESS_SCENARIO=traffic_aware
+ENV STRESS_DURATION=86400
+ENV CONTAINERS=""
+ENV STRESS_PROB_CPU=0.3
+ENV STRESS_PROB_MEMORY=0.2
+ENV STRESS_PROB_IO=0.15
+ENV STRESS_PROB_NETWORK_LOSS=0.1
+ENV STRESS_PROB_NETWORK_LATENCY=0.15
+ENV STRESS_PROB_DISK=0.1
+
+# Default command (duration in seconds)
+CMD ["python", "generate_stress.py", \
+     "--scenario", "traffic_aware", \
+     "--output-dir", "/data/stress"]
