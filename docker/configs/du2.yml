@@ -44,7 +44,8 @@ cell_cfg:
   pci: 3
 
 # =============================================================================
-# Test Mode Configuration (for 2 UEs)
+# Test Mode Configuration (for 2 UEs with UL/DL traffic enabled)
+# DU2 uses different CQI=10 and RI=3 for diversity
 # =============================================================================
 test_mode:
   test_ue:
@@ -52,8 +53,8 @@ test_mode:
     nof_ues: 2
     pdsch_active: true
     pusch_active: true
-    cqi: 15
-    ri: 1
+    cqi: 10
+    ri: 3
     pmi: 0
 
 # =============================================================================

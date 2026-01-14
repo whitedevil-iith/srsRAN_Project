@@ -35,15 +35,16 @@
 namespace srsran {
 
 /// Container metrics from cAdvisor.
+/// All counter metrics are converted to gauge/rate metrics (delta/time).
 struct cadvisor_container_metrics {
   std::string container_name;
-  double      cpu_usage_percentage = 0.0;
-  uint64_t    memory_usage_bytes   = 0;
-  uint64_t    memory_limit_bytes   = 0;
-  uint64_t    network_rx_bytes     = 0;
-  uint64_t    network_tx_bytes     = 0;
-  uint64_t    filesystem_usage     = 0;
-  uint64_t    filesystem_limit     = 0;
+  double      cpu_usage_percentage       = 0.0;
+  uint64_t    memory_usage_bytes         = 0;
+  uint64_t    memory_limit_bytes         = 0;
+  double      network_rx_bytes_per_sec   = 0.0;  ///< Network receive rate (bytes/sec), converted from counter
+  double      network_tx_bytes_per_sec   = 0.0;  ///< Network transmit rate (bytes/sec), converted from counter
+  uint64_t    filesystem_usage           = 0;
+  uint64_t    filesystem_limit           = 0;
 };
 
 /// Collection of cAdvisor metrics.

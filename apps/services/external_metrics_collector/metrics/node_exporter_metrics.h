@@ -34,20 +34,21 @@
 namespace srsran {
 
 /// Host metrics from Node Exporter.
+/// All counter metrics are converted to gauge/rate metrics (delta/time).
 struct node_exporter_metrics {
-  double   cpu_usage_percentage     = 0.0;
-  uint64_t memory_total_bytes       = 0;
-  uint64_t memory_available_bytes   = 0;
-  uint64_t memory_used_bytes        = 0;
-  uint64_t disk_read_bytes          = 0;
-  uint64_t disk_write_bytes         = 0;
-  uint64_t network_receive_bytes    = 0;
-  uint64_t network_transmit_bytes   = 0;
-  double   load_average_1m          = 0.0;
-  double   load_average_5m          = 0.0;
-  double   load_average_15m         = 0.0;
-  uint64_t filesystem_size_bytes    = 0;
-  uint64_t filesystem_avail_bytes   = 0;
+  double   cpu_usage_percentage         = 0.0;
+  uint64_t memory_total_bytes           = 0;
+  uint64_t memory_available_bytes       = 0;
+  uint64_t memory_used_bytes            = 0;
+  double   disk_read_bytes_per_sec      = 0.0;   ///< Disk read rate (bytes/sec), converted from counter
+  double   disk_write_bytes_per_sec     = 0.0;   ///< Disk write rate (bytes/sec), converted from counter
+  double   network_receive_bytes_per_sec = 0.0;  ///< Network receive rate (bytes/sec), converted from counter
+  double   network_transmit_bytes_per_sec = 0.0; ///< Network transmit rate (bytes/sec), converted from counter
+  double   load_average_1m              = 0.0;
+  double   load_average_5m              = 0.0;
+  double   load_average_15m             = 0.0;
+  uint64_t filesystem_size_bytes        = 0;
+  uint64_t filesystem_avail_bytes       = 0;
 };
 
 /// Node Exporter metrics properties.

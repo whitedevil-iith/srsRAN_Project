@@ -410,7 +410,7 @@ class MetricsCollector:
                 # Convert counter to gauge if needed
                 if self._is_counter_metric(metric_name, "node_exporter"):
                     gauge_value = self.converter.convert(
-                        f"nodeExporter_{key}", value, timestamp
+                        f"NodeExporter_{key}", value, timestamp
                     )
                     if gauge_value is None:
                         continue
@@ -436,11 +436,11 @@ class MetricsCollector:
             for base_name, values in aggregation_groups.items():
                 stats = calculate_stats(values)
                 for stat_name, stat_value in stats.items():
-                    result[f"nodeExporter_{base_name}_{stat_name}"] = stat_value
+                    result[f"NodeExporter_{base_name}_{stat_name}"] = stat_value
             
             # Add non-aggregated metrics with prefix
             for key, value in raw_values.items():
-                result[f"nodeExporter_{key}"] = value
+                result[f"NodeExporter_{key}"] = value
 
             return result
 
@@ -618,19 +618,16 @@ def get_ran_prefix(node_name: str) -> str:
     """
     Determine the appropriate RAN prefix based on node name.
     
+    All RAN metrics are prefixed with "RAN_" regardless of whether
+    they come from a CU or DU node.
+    
     Args:
         node_name: The E2 node name (e.g., "cu0", "du1")
         
     Returns:
-        "CU_" for CU nodes, "DU_" for DU nodes
+        "RAN_" for all RAN nodes
     """
-    if node_name.lower().startswith("cu"):
-        return "CU_"
-    elif node_name.lower().startswith("du"):
-        return "DU_"
-    else:
-        # Default to node name prefix for unknown types
-        return f"{node_name.upper()}_"
+    return "RAN_"
 
 
 def prefix_dict_keys(d: dict[str, Any], prefix: str) -> dict[str, Any]:

@@ -44,7 +44,7 @@ cell_cfg:
   pci: 1
 
 # =============================================================================
-# Test Mode Configuration (for 2 UEs)
+# Test Mode Configuration (for 2 UEs with UL/DL traffic enabled)
 # =============================================================================
 test_mode:
   test_ue:
