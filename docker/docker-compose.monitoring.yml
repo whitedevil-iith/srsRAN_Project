@@ -26,7 +26,7 @@
 #
 # Topology:
 #   - CU0 → DU0 (2 test UEs, CQI=15, RI=1)
-#   - CU1 → DU1 (2 test UEs, CQI=12, RI=2), DU2 (2 test UEs, CQI=10, RI=3)
+#   - CU1 → DU1 (2 test UEs, CQI=12, RI=1), DU2 (2 test UEs, CQI=10, RI=1)
 #   - RU0, RU1, RU2 (ZMQ RUs)
 #   - Total: 2 CUs, 3 DUs, 3 RUs, 6 test UEs with different channel conditions
 #
@@ -37,13 +37,14 @@
 #     - test_ue.pusch_active: Enable/disable uplink traffic (PUSCH)
 #     - test_ue.nof_ues: Number of simulated UEs per DU
 #     - test_ue.cqi: Channel Quality Indicator (1-15, affects throughput)
-#     - test_ue.ri: Rank Indicator (1-4, for MIMO layers)
+#     - test_ue.ri: Rank Indicator (must be <= nof_dl_antenna_ports)
 #     - test_ue.pmi: Precoding Matrix Indicator
 #
-#   Each DU is configured with different CQI and RI values for diversity:
+#   Each DU is configured with different CQI values for diversity:
 #     - DU0: CQI=15 (best channel), RI=1
-#     - DU1: CQI=12 (good channel), RI=2
-#     - DU2: CQI=10 (moderate channel), RI=3
+#     - DU1: CQI=12 (good channel), RI=1
+#     - DU2: CQI=10 (moderate channel), RI=1
+#   Note: RI is set to 1 as default antenna config uses 1 DL antenna port.
 #
 #   Note: Test mode traffic is continuous and not dynamically controllable at
 #   runtime. To change traffic patterns, modify the DU config files and restart.
